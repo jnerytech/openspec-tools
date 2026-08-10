@@ -216,7 +216,11 @@ openspec-tools/
 │   └── types.ts        # Shared types
 ├── skills/
 │   └── openspec-review-change/
-│       └── SKILL.md    # The review skill (install manually)
+│       ├── SKILL.md    # The review skill (install manually)
+│       └── references/ # Loaded on demand during a review
+│           ├── claim-verification.md
+│           ├── openspec-conventions.md
+│           └── report-template.md
 └── README.md
 ```
 

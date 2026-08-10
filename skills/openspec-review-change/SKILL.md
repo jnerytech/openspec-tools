@@ -1,47 +1,74 @@
 ---
 name: openspec-review-change
-description: >
-  Review an open OpenSpec change: verify internal consistency of its artifacts,
-  alignment with existing specs, conformance of any code already written, and
-  independently confirm — in the real repository — the factual claims the change
-  makes. Use when the user wants a change reviewed before applying or archiving.
+description: >-
+  Review an open OpenSpec change before it is applied or archived: cross-validate
+  proposal, design, specs and tasks against each other, check alignment with the
+  existing specs and with any code already written, and independently verify —
+  against the real repository — every factual claim the change asserts. Produces
+  review.md with a verdict and findings ranked by severity.
+when_to_use: >-
+  The user asks to review, audit, critique, double-check or sanity-check an
+  OpenSpec change or proposal ("review this change", "is this proposal correct?",
+  "check it before I apply", "revisar essa change", "revisar a proposta"), or
+  wants a second opinion before openspec apply / openspec archive.
+argument-hint: "[change-name]"
 license: MIT
-compatibility: Requires openspec CLI.
+compatibility: Requires openspec CLI >= 1.8.
+effort: high
+allowed-tools:
+  - Bash(openspec:*)
+  - Bash(git log:*)
+  - Bash(git show:*)
+  - Bash(git diff:*)
+  - Bash(git blame:*)
+  - Bash(git status:*)
+  - Read
+  - Grep
+  - Glob
+  - Write
+  - AskUserQuestion
+metadata:
+  author: openspec-tools
+  version: "2.0"
 ---
 
-Review an open (non-archived) OpenSpec change. The review has two fronts:
+Review one open (non-archived) OpenSpec change on two fronts:
 
-- **(a) Artifact quality** — are proposal, design, specs and tasks consistent, complete and testable?
-- **(b) Independent exploration** — redo the investigation the change claims to have done and confirm, against the real code, whether what it asserts is true.
+- **Artifact quality** — are proposal, design, specs and tasks consistent, complete and testable?
+- **Independent verification** — redo the investigation the change claims to have done and confirm, against the real repository, whether what it asserts is true.
 
-You are a critical but constructive reviewer. Do not implement anything, do not propose new features. Read, compare, verify, report.
+Be a critical but constructive reviewer. Do not implement, do not design new features, do not fix code. Read, compare, verify, report.
 
-**Read-only**: the only file this skill may write is the change's own `review.md` (Step 8). Everything else stays untouched unless the user explicitly asks for fixes afterwards.
+**Change requested:** `$ARGUMENTS` — empty means select it in Step 1.
 
-**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on every command that reads specs and changes (`list`, `status`, `show`, `validate`, `instructions`, `context`). Once selected, treat `--store <id>` as sticky for the rest of the review — every unscoped example below is shorthand. Without a store, commands act on the nearest local `openspec/` root.
+## Live context
 
-**Input**: Optionally a change name (e.g. `/opsx:review add-auth`). If omitted, list the active changes and ask which one to review. **One change per invocation** — never review in batch. If the user wants another, they invoke the skill again.
+Captured at load time from the nearest OpenSpec root. Re-run any command if you need fresher data or a store scope.
+
+- Active changes: !`openspec list --json 2>/dev/null || echo '{"changes":[],"note":"openspec CLI unavailable in this directory"}'`
+- Stores: !`openspec store list --json 2>/dev/null || echo '{"stores":[]}'`
+- Working tree: !`git status --short 2>/dev/null | head -30 || true`
+- Recent commits: !`git log --oneline -10 2>/dev/null || true`
+
+## Scope rules
+
+- One change per invocation. Never review in batch — a second change means a second invocation.
+- Never review anything under `archive/` without explicit user confirmation.
+- **Store**: if the user names a store, or the work lives in one, take its id from the store list above and append `--store <id>` to every openspec command (`list`, `status`, `show`, `validate`, `instructions`, `context`) for the rest of the review. Unscoped examples below are shorthand.
+- Report language = the language the user is writing in.
 
 ---
 
-## Step 1 — Select the change and load project state
+## Step 1 — Select the change
+
+If `$ARGUMENTS` names a change, confirm it appears among the active changes above. Otherwise present the active changes via **AskUserQuestion**, one option per change, each labelled with status and `completedTasks/totalTasks`. Confirm even when only one change is active.
+
+Then load its state and announce `Reviewing change: <name>` (plus store id, when in use):
 
 ```
-openspec list --json
 openspec status --change "<name>" --json
 openspec instructions --json
 ```
-
-- If a name was given, confirm it exists among the active changes.
-- If not, present the active changes via **AskUserQuestion**, one option per change, each described with progress (`completedTasks/totalTasks`) and status.
-- Even when there is only one active change, confirm it via AskUserQuestion — the user may have a different one in mind.
-- Never review a change from `archive/`. If the user names an archived one, say so and ask for explicit confirmation before proceeding.
-
-Always announce: `Reviewing change: <name>` (plus the store id, when one is in use).
-
-Identify where the change lives (`openspec/changes/<name>/`) and which artifacts exist.
-
----
 
 ## Step 2 — Validate with the CLI
 
@@ -49,152 +76,71 @@ Identify where the change lives (`openspec/changes/<name>/`) and which artifacts
 openspec validate "<name>" --strict --json --no-interactive
 ```
 
-Record errors and warnings for the report. A validation failure does not stop the review — it becomes a finding.
+Failures do not stop the review — each becomes a finding. Record errors and warnings verbatim.
 
----
+## Step 3 — Read every artifact
 
-## Step 3 — Read the change artifacts
+Read all `.md` files in `openspec/changes/<name>/`, in this order (skip what is absent):
 
-Read every `.md` file inside `openspec/changes/<name>/`, in this order (skip if absent):
+1. `proposal.md` — the *why*
+2. `specs/**/spec.md` — the *what* (delta requirements and scenarios)
+3. `design.md` — the *how* (legitimately absent for trivial changes)
+4. `tasks.md` — the checklist and its completion state
+5. Any other metadata/schema file (e.g. `.openspec.yaml`)
 
-1. `proposal.md` — the *why*: motivation, scope, impact, decisions
-2. `specs/**/spec.md` — the *what*: delta requirements and scenarios
-3. `design.md` — the *how*: technical approach, architecture, data model (may legitimately be absent for trivial changes)
-4. `tasks.md` — the *checklist*: implementation steps and completion status
-5. Any other `.md` or change metadata/schema file (e.g. `.openspec.yaml`)
-
-For each artifact, note what it claims to do and any gap, ambiguity or contradiction **within** that artifact.
-
----
+For each: note what it claims, and any gap, ambiguity or contradiction **inside** that artifact.
 
 ## Step 4 — Extract the verifiable claims
 
-Before exploring, build an explicit list of everything the change **asserts as fact** about the current state of the repository — not what it proposes, but what it says is already true. Typical claims:
+List everything the change asserts **as already true** about the repository — diagnoses, root causes, current behaviour, dependencies, configuration state, paths, names, versions, quoted output. Proposals are not claims; assertions about the present are.
 
-- "File / module / service X is configured like this…"
-- "The bug is caused by Y"
-- "Component A currently depends on B"
-- "The current behaviour is Z"
-- Diagnoses, quoted command output, versions, paths, variable/function/service names
+A claim too vague to verify is itself a finding: an unverifiable proposal.
 
-Each claim becomes an item to confirm in the next step. A claim too vague to verify is itself a quality finding: an unverifiable proposal.
+## Step 5 — Verify the claims independently
 
----
+Treat every claim as a **hypothesis to refute**, not a fact. Open the cited files and check the claimed mechanism actually holds — existence of a file proves nothing. Actively hunt for scope the change missed ("only X is affected" → grep for siblings of X); missed scope is the highest-value finding a review produces.
 
-## Step 5 — Independent exploration: confirm the claims
+Fan out: send **one `Explore` subagent per claim cluster, all in a single message** so they run concurrently, and keep only their verdicts in context. Prompt templates, evidence standards per claim type, and the verdict rules are in [references/claim-verification.md](references/claim-verification.md) — read it before delegating.
 
-Treat every claim as a **hypothesis, not a fact**. Redo the investigation yourself, without trusting the change's conclusions.
-
-- **Code**: open the cited files, confirm they exist, that the content is what is described, and that the claimed mechanism (dependency, flow, root cause) actually holds when you read the code — not merely that the file exists.
-- **Configuration / infra**: when the change asserts configuration state (inventories, variables, templates, manifests, compose files), check the source files. If the claim is about **running** state (service up, port open, installed version) and there is safe read-only access, verify it; otherwise record it as "not verifiable in this environment" — never mark it confirmed without evidence.
-- **History**: when the change cites past behaviour or the origin of a problem, corroborate with `git log` / `git blame` where it makes sense.
-- **Coverage**: the change says "only X is affected"? Actively look for other affected sites (grep for related patterns). A missed piece of scope is one of the most valuable findings a review produces.
-
-For large repositories, delegate broad searches to exploration subagents (e.g. the `Explore` agent) and keep only the conclusions in the main context.
-
-Record each claim with a verdict: **CONFIRMED** (with evidence: `file:line`, command run, output), **REFUTED** (with the evidence of what is actually true), or **UNVERIFIABLE** (and why). A refuted claim is a critical finding; an unverifiable claim that is essential to the change's argument is an important one.
-
----
+Each claim ends as **CONFIRMED** (with `file:line` or command output), **REFUTED** (with what is actually true), or **UNVERIFIABLE** (with why). No evidence → never CONFIRMED.
 
 ## Step 6 — Cross-validate the artifacts
 
-Check consistency **between** artifacts:
-
-| Check | What to look for |
+| Check | Look for |
 |---|---|
-| Proposal → Specs | Do the specs cover everything the proposal promises? Any requirement contradicting the stated scope? |
-| Specs → Design | Does the design address all specified requirements? Does it introduce assumptions not grounded in the specs? |
-| Design → Tasks | Are all design decisions reflected in tasks? Any task with no design backing? |
-| Proposal → Tasks | Does the task list match the proposal's scope? Nothing added silently, nothing dropped? |
+| Proposal → Specs | Do specs cover everything the proposal promises? Any requirement contradicting the stated scope? |
+| Specs → Design | Does the design address every specified requirement? Assumptions not grounded in the specs? |
+| Design → Tasks | Is every design decision reflected in tasks? Any task with no design backing? |
+| Proposal → Tasks | Does the task list match the proposal's scope — nothing silently added or dropped? |
 
-Report each inconsistency with **location** (artifact + section), **what was expected**, **what was found**.
+Each inconsistency gets a location (artifact + section), what was expected, what was found.
 
----
+## Step 7 — Validate against existing specs, progress and code
 
-## Step 7 — Validate against existing specs and code
+- **Existing specs** (`openspec/specs/`): conflicts with current requirements, correct use of delta markers, scenario coverage and testability — conventions in [references/openspec-conventions.md](references/openspec-conventions.md).
+- **Declared progress**: sample the `- [x]` tasks and confirm each corresponds to real code or git history. A checked box with no evidence is a finding.
+- **Code conformance** (when partially implemented): does the code match specs and design? Are the specified edge cases and error paths handled? Any pattern contradicting a design decision? Report misalignment — never fix it.
+- **Risk**: production, secrets, network or data touched? Risks mapped, rollback plan present, verification tasks included when warranted?
 
-**Existing specs** — read `openspec/specs/` (if present). For each spec file relevant to this change:
+## Step 8 — Write and show the report (mandatory)
 
-- Does the change respect the existing requirements, constraints and conventions?
-- Are delta markers (`## ADDED`, `## MODIFIED`, `## REMOVED`, `## RENAMED`) used correctly, or does the change silently overwrite existing requirements?
-- Does every requirement carry at least one `#### Scenario:`, and are those scenarios testable rather than vague?
-- Are there conflicts between what the change proposes and what the existing specs define?
+Read [references/report-template.md](references/report-template.md) for the skeleton, the verdict rubric and the severity definitions, then deliver the report in **both** places, in this order:
 
-**Declared progress** — if `tasks.md` has `- [x]` items, sample them and confirm the checked tasks correspond to real changes in the code or git history. A checked box with no evidence in the repo is a finding.
-
-**Code conformance** — if the change is partially or fully implemented, locate the relevant source files (use the tasks checklist and design as guides) and check:
-
-- Does the code match what the specs and design describe?
-- Are edge cases and error scenarios defined in the specs handled?
-- Are there code patterns that contradict the design decisions?
-
-**Do not rewrite or fix code.** Only report what is misaligned and where.
-
-**Risk and impact** — does the change touch sensitive ground (production, secrets, network, data)? Are the risks mapped? Is there a rollback plan, and verification/rollback tasks, when the change warrants them?
-
----
-
-## Step 8 — Write and display the report (mandatory — never skip)
-
-The report is the product of the review and must exist in **two places**, in this order:
-
-1. **File**: write `openspec/changes/<name>/review.md`, opening with a header line `> Reviewed on <date> — <verdict>`. Overwrite any previous `review.md` (git keeps the history). This is the only file this skill may write.
-2. **Response**: display the full report as the text of your answer, **before** any AskUserQuestion. The next-step question never replaces the report — a review that ends only with a question, without a visible report and a written file, is incomplete.
-
-Write the report in the language the user is speaking.
-
-```markdown
-# Review — <change-name>
-
-**Status:** <status> — <N>/<M> tasks
-**CLI validation:** ok | failed — <error summary>
-
-## Verdict
-<Approved | Approved with reservations | Needs rework> — <one sentence of justification>
-
-## Claim verification
-| Claim | Verdict | Evidence |
-|---|---|---|
-| <what the change asserts> | CONFIRMED / REFUTED / UNVERIFIABLE | <file:line, command, or reason> |
-
-## Findings
-
-### Critical (block apply/archive)
-- <file>: <finding and why it matters>
-
-### Important (should be fixed)
-- <finding>
-
-### Suggestions (optional)
-- <finding>
-
-## What looks good
-- <item>
-```
-
-Omit a section when it has no entries. Every finding points at the file (and the relevant excerpt when useful) and explains the practical consequence, not just the rule that was broken. Be precise and concise; do not speculate about intent — report what is written versus what is expected.
-
----
+1. **File** — `openspec/changes/<name>/review.md`. Overwrite any previous one (git keeps history); if it exists, read it first so the write succeeds. This is the only file this skill writes.
+2. **Response** — the full report as the text of your answer, before any question.
 
 ## Step 9 — Offer the next step
 
-Only after the report is written to `review.md` **and** displayed in the response, ask via **AskUserQuestion** whether the user wants to:
-
-- Apply the suggested fixes to the artifacts
-- Review another change (new invocation of the skill)
-- Finish
-
-Only edit artifacts if the user chooses to apply the fixes.
+Only after both of the above, ask via **AskUserQuestion**: apply the suggested fixes to the artifacts, review another change (new invocation), or finish. Edit artifacts only if the user picks the first.
 
 ---
 
 ## Guardrails
 
-- The review is read-only until the user authorizes fixes — the single write exception is `review.md` in Step 8. Independent exploration uses read/inspect commands only; never anything that mutates code or infrastructure.
-- The turn cannot end before the full report has been written to `review.md` and shown as text in the response. Ending straight into a question, with no visible report, is a failure of the skill.
-- Never mark a claim confirmed without concrete evidence (`file:line` or command output). When in doubt, it is UNVERIFIABLE.
-- One change per invocation — never review in batch.
-- Never review changes under `archive/` without explicit user confirmation.
-- Always run `openspec` against the correct root; keep `--store <id>` sticky once selected.
-- Do not invent format rules: when unsure about an OpenSpec convention, compare against archived changes in the same root as reference.
-- Ask the user questions through the native interactive tool (AskUserQuestion), never as plain text in the response.
+- Read-only until the user authorizes fixes in Step 9. The single write exception is `review.md`. Verification uses inspection commands only — never anything that mutates code, infra or running services.
+- The turn cannot end before the report is both written to `review.md` and shown as text. Ending straight into a question, with no visible report, is a failure of the skill.
+- Never mark a claim CONFIRMED without concrete evidence. When in doubt: UNVERIFIABLE.
+- Report what is written versus what is expected — never speculate about intent.
+- Keep `--store <id>` sticky once selected.
+- Unsure about an OpenSpec convention? Compare against archived changes in the same root rather than inventing a rule.
+- Ask questions through AskUserQuestion, never as plain text in the response.
