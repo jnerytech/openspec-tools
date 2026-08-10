@@ -7,7 +7,7 @@
     "opsx-read": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc",
+    "compile": "tsc",
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js"
   },

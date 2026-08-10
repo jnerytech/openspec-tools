@@ -112,11 +112,17 @@ To update later, run the same command again.
 git clone https://github.com/jnerytech/openspec-tools
 cd openspec-tools
 npm install
-npm run build
+npm run compile
 
 # Run without installing globally
 node dist/cli.js
 ```
+
+> The compile script is deliberately **not** named `build`. npm 11 gives
+> packages with a `build` script special handling when installing from a git
+> ref: instead of packing the package it links it to a temporary clone under
+> `~/.npm/_cacache/tmp/`, which is then cleaned up — leaving a dangling `bin`
+> symlink and a `command not found`. Renaming the script avoids that path.
 
 ---
 
