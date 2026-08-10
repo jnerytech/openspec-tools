@@ -328,13 +328,23 @@ const CSS = `
   }
 `;
 
-function pageShell(title: string, body: string, extraHead = ""): string {
+/**
+ * `project` leads every signature in this module: a row of browser tabs from
+ * different projects has to be legible, so no page can be rendered without
+ * saying which project it belongs to.
+ */
+function pageShell(
+  project: string,
+  title: string,
+  body: string,
+  extraHead = ""
+): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escHtml(title)} · openspec-tools</title>
+  <title>${escHtml(title)} · ${escHtml(project)}</title>
   <style>${CSS}</style>
   ${extraHead}
 </head>
@@ -413,6 +423,7 @@ function archivedList(changes: Change[], view: ArchiveViewState): string {
 }
 
 export function renderIndex(
+  project: string,
   changes: Change[],
   changesDir: string,
   options: {
@@ -428,13 +439,13 @@ export function renderIndex(
   if (options.archiveOnly) {
     const body = `
     <header class="site-header" role="banner">
-      <span class="brand">openspec-tools</span>
+      <span class="brand">${escHtml(project)}</span>
       <h1>Archived Changes</h1>
       <p class="subtitle">${escHtml(changesDir)}/archive · ${archivedChanges.length} change${archivedChanges.length !== 1 ? "s" : ""} found</p>
     </header>
     <main id="main">${archivedList(archivedChanges, view)}</main>`;
 
-    return pageShell("Archived Changes", body);
+    return pageShell(project, "Archived Changes", body);
   }
 
   const listHtml =
@@ -466,17 +477,18 @@ export function renderIndex(
 
   const body = `
     <header class="site-header" role="banner">
-      <span class="brand">openspec-tools</span>
+      <span class="brand">${escHtml(project)}</span>
       <h1>Open Changes</h1>
       <p class="subtitle">${escHtml(changesDir)} · ${changes.length} change${changes.length !== 1 ? "s" : ""} found</p>
       ${toggle}
     </header>
     <main id="main">${listHtml}${archivedSection}</main>`;
 
-  return pageShell("Open Changes", body);
+  return pageShell(project, "Open Changes", body);
 }
 
 export async function renderChange(
+  project: string,
   change: Change,
   view: ArchiveViewState = HIDDEN_ARCHIVE
 ): Promise<string> {
@@ -516,7 +528,7 @@ export async function renderChange(
 
   const body = `
     <header class="site-header" role="banner">
-      <a class="brand" href="${linkTo("/", view)}">← openspec-tools</a>
+      <a class="brand" href="${linkTo("/", view)}">← ${escHtml(project)}</a>
       <h1>${escHtml(title)}</h1>
       <p class="subtitle">${change.artifacts.length} artifact${change.artifacts.length !== 1 ? "s" : ""}</p>
     </header>
@@ -527,10 +539,11 @@ export async function renderChange(
     </nav>
     <main id="main">${sections.join("")}</main>`;
 
-  return pageShell(title, body);
+  return pageShell(project, title, body);
 }
 
 export async function renderFiles(
+  project: string,
   files: MarkdownFile[],
   title: string,
   backHref?: string
@@ -570,7 +583,7 @@ export async function renderFiles(
 
   const body = `
     <header class="site-header" role="banner">
-      <a class="brand" href="/">← openspec-tools</a>
+      <a class="brand" href="/">← ${escHtml(project)}</a>
       <h1>${escHtml(title)}</h1>
       <p class="subtitle">${files.length} file${files.length !== 1 ? "s" : ""}</p>
     </header>
@@ -578,30 +591,33 @@ export async function renderFiles(
     ${toc}
     <main id="main">${sections.join("")}</main>`;
 
-  return pageShell(title, body);
+  return pageShell(project, title, body);
 }
 
-export async function renderSingleFile(filePath: string): Promise<string> {
+export async function renderSingleFile(
+  project: string,
+  filePath: string
+): Promise<string> {
   const raw = await readFile(filePath, "utf-8");
   const html = await marked.parse(raw);
   const name = filePath.split("/").pop()?.replace(/\.md$/, "") ?? "Document";
 
   const body = `
     <header class="site-header" role="banner">
-      <a class="brand" href="/">← openspec-tools</a>
+      <a class="brand" href="/">← ${escHtml(project)}</a>
       <h1>${escHtml(name)}</h1>
     </header>
     <main id="main">
       <div class="md-body">${html}</div>
     </main>`;
 
-  return pageShell(name, body);
+  return pageShell(project, name, body);
 }
 
-export function render404(): string {
+export function render404(project: string): string {
   const body = `
     <header class="site-header" role="banner">
-      <a class="brand" href="/">← openspec-tools</a>
+      <a class="brand" href="/">← ${escHtml(project)}</a>
       <h1>Not found</h1>
     </header>
     <main id="main">
@@ -610,7 +626,7 @@ export function render404(): string {
         <p><a href="/">Go back to the index</a>.</p>
       </div>
     </main>`;
-  return pageShell("Not found", body);
+  return pageShell(project, "Not found", body);
 }
 
 function escHtml(s: string): string {

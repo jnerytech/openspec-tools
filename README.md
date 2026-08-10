@@ -3,7 +3,7 @@
 An **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** extension package with two components:
 
 1. **`opsx-read`** — a lightweight CLI + web server that renders OpenSpec changes as clean, read-aloud-friendly HTML pages (great with browser Read Aloud, Edge Immersive Reader, etc.)
-2. **`openspec-review`** — a skill that reviews a change for internal consistency, alignment with existing specs, and code conformance
+2. **`openspec-review-change`** — a skill that reviews a change for internal consistency, alignment with existing specs, code conformance, and independent verification of the factual claims the change makes
 
 ---
 
@@ -32,13 +32,40 @@ opsx-read ./docs
 opsx-read CONTRIBUTING.md --open
 ```
 
-Then open `http://localhost:4242` in your browser and use **Read Aloud** (Edge, Chrome, Safari, etc.) to listen to the spec while you code.
+The command prints the URL it bound, along with the project and what it is
+reading:
+
+```
+  openspec-tools  →  http://localhost:4849
+  project: openspec-tools  ·  reading: openspec/changes/
+```
+
+Open that URL in your browser and use **Read Aloud** (Edge, Chrome, Safari, etc.) to listen to the spec while you code.
+
+### Ports
+
+Each project gets its own port, derived from the project root — the nearest
+folder owning `openspec/`, or the repository root. So:
+
+- The same project always lands on the same URL, restart after restart, and a
+  browser tab stays valid. Nothing is written to disk to achieve it.
+- Readers for different projects run side by side without you assigning ports.
+  Each names its project on startup and in the page title.
+- The port does not depend on which subdirectory you ran the command from.
+
+Ports are chosen from `4242`–`4999`. If the derived one is busy, the next free
+port in the range is used and the substitution is announced. `--port` overrides
+the choice and is never substituted: if that exact port is taken, the command
+says so and stops.
+
+> **Note:** `opsx-read` no longer listens on `4242` by default. Pass
+> `--port 4242` if something depends on that address.
 
 ### Options
 
 | Flag | Default | Description |
 |---|---|---|
-| `-p, --port <n>` | `4242` | Port to listen on |
+| `-p, --port <n>` | *derived from the project* | Listen on this exact port |
 | `-o, --open` | `false` | Open browser automatically |
 | `-a, --archived` | `false` | Include archived changes on the first page load |
 | `-h, --help` | — | Show help |
@@ -103,12 +130,12 @@ Copy the skill directory into your AI tool's skills folder.
 
 **Claude Code:**
 ```bash
-cp -r skills/openspec-review .claude/skills/
+cp -r skills/openspec-review-change .claude/skills/
 ```
 
 **Cursor:**
 ```bash
-cp -r skills/openspec-review .cursor/skills/
+cp -r skills/openspec-review-change .cursor/skills/
 ```
 
 **Other tools:** see the [OpenSpec supported tools docs](https://github.com/Fission-AI/OpenSpec/blob/main/docs/supported-tools.md) for the right path.
@@ -181,12 +208,14 @@ node dist/cli.js
 openspec-tools/
 ├── src/
 │   ├── cli.ts          # Entry point, argument parsing
-│   ├── server.ts       # HTTP server and routing
+│   ├── server.ts       # HTTP server, port binding, routing
+│   ├── project.ts      # Resolves the project root and its name
+│   ├── port.ts         # Derives a project's port from its root
 │   ├── scanner.ts      # Reads openspec/ directory structure
 │   ├── renderer.ts     # Markdown → read-aloud HTML
 │   └── types.ts        # Shared types
 ├── skills/
-│   └── openspec-review/
+│   └── openspec-review-change/
 │       └── SKILL.md    # The review skill (install manually)
 └── README.md
 ```

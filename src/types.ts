@@ -29,8 +29,21 @@ export type TargetMode =
   | { kind: "dir";     dirPath: string }       // qualquer pasta com .md
   | { kind: "file";    filePath: string };     // arquivo .md específico
 
+/**
+ * The project being served, resolved once. `root` decides the port and `name`
+ * is how the user tells one running reader from another.
+ */
+export interface ProjectIdentity {
+  /** Absolute path of the project root, symlinks resolved. */
+  root: string;
+  /** The root's basename. */
+  name: string;
+}
+
 export interface ServerOptions {
-  port: number;
+  /** What the user asked for. Absent means the reader derives a port itself. */
+  requestedPort?: number;
+  project: ProjectIdentity;
   mode: TargetMode;
   openBrowser: boolean;
   /** Whether the first page load includes archived changes. */

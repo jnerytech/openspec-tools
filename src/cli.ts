@@ -5,6 +5,8 @@ import { createRequire } from "module";
 import { Command, InvalidArgumentError } from "commander";
 import type { TargetMode, ServerOptions } from "./types.js";
 import { startServer } from "./server.js";
+import { resolveProject } from "./project.js";
+import { PORT_RANGE_START, PORT_RANGE_END } from "./port.js";
 import {
   scanChanges,
   scanArchivedChanges,
@@ -15,7 +17,6 @@ import {
 const requirePkg = createRequire(import.meta.url);
 const pkg = requirePkg("../package.json") as { version: string };
 
-const DEFAULT_PORT = 4242;
 const DEFAULT_CHANGES_DIR = "openspec/changes";
 const HELP_HINT = "Run 'opsx-read --help' for usage.";
 
@@ -277,7 +278,11 @@ program
   .name("opsx-read")
   .description("serve OpenSpec changes as read-aloud-friendly web pages")
   .argument("[target]", "change name, folder, or .md file (default: openspec/changes/)")
-  .option("-p, --port <n>", "port to listen on", parsePort, DEFAULT_PORT)
+  .option(
+    "-p, --port <n>",
+    "listen on this exact port, overriding the automatic choice",
+    parsePort
+  )
   .option("-o, --open", "open browser automatically", false)
   .option("-a, --archived", "include archived changes", false)
   .version(pkg.version, "-v, --version", "output the version number")
@@ -302,7 +307,14 @@ EXAMPLES
   opsx-read 2026-08-10-add-dark-mode # read an archived change
   opsx-read ./docs                   # serve a docs folder
   opsx-read CONTRIBUTING.md -o       # open a file in browser
-  opsx-read -p 8080                  # custom port
+  opsx-read -p 8080                  # pin the port instead
+
+PORT
+  Chosen automatically when --port is omitted: each project gets its own
+  port in ${PORT_RANGE_START}-${PORT_RANGE_END}, derived from the project root, so the same project keeps
+  the same URL across restarts and several readers can run side by side.
+  If that port is taken, the next free one is used and the swap is announced.
+  --port is never substituted: a busy port is reported as an error instead.
 
 NOTE
   'help' is read as a command, not a target. A change actually named
@@ -311,7 +323,7 @@ NOTE
   )
   .action(async (
     target: string | undefined,
-    options: { port: number; open: boolean; archived: boolean }
+    options: { port?: number; open: boolean; archived: boolean }
   ) => {
     // 'help' is intercepted here rather than registered as a subcommand, which
     // would add a "Commands:" section to a CLI that has exactly one job.
@@ -321,12 +333,13 @@ NOTE
 
     const mode = await resolveMode(target);
     const opts: ServerOptions = {
-      port: options.port,
+      requestedPort: options.port,
+      project: resolveProject(),
       mode,
       openBrowser: options.open,
       archived: options.archived,
     };
-    startServer(opts);
+    await startServer(opts);
   });
 
 await program.parseAsync(process.argv);

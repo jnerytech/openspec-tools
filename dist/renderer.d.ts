@@ -8,14 +8,14 @@ export interface ArchiveViewState {
     current: boolean;
     initial: boolean;
 }
-export declare function renderIndex(changes: Change[], changesDir: string, options?: {
+export declare function renderIndex(project: string, changes: Change[], changesDir: string, options?: {
     view?: ArchiveViewState;
     archivedChanges?: Change[];
     /** Archive directory targeted directly: no open-change section at all. */
     archiveOnly?: boolean;
 }): string;
-export declare function renderChange(change: Change, view?: ArchiveViewState): Promise<string>;
-export declare function renderFiles(files: MarkdownFile[], title: string, backHref?: string): Promise<string>;
-export declare function renderSingleFile(filePath: string): Promise<string>;
-export declare function render404(): string;
+export declare function renderChange(project: string, change: Change, view?: ArchiveViewState): Promise<string>;
+export declare function renderFiles(project: string, files: MarkdownFile[], title: string, backHref?: string): Promise<string>;
+export declare function renderSingleFile(project: string, filePath: string): Promise<string>;
+export declare function render404(project: string): string;
 //# sourceMappingURL=renderer.d.ts.map
