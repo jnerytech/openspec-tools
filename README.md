@@ -3,7 +3,9 @@
 An **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** extension package with two components:
 
 1. **`opsx-read`** — a lightweight CLI + web server that renders OpenSpec changes as clean, read-aloud-friendly HTML pages (great with browser Read Aloud, Edge Immersive Reader, etc.)
-2. **`openspec-review-change`** — a skill that reviews a change for internal consistency, alignment with existing specs, code conformance, and independent verification of the factual claims the change makes, installed and removed with the **`opsx-skills`** command that ships alongside it
+2. **A pack of two skills**, installed and removed with the **`opsx-skills`** command that ships alongside them:
+   - **`openspec-review-change`** — reviews a change for internal consistency, alignment with existing specs, code conformance, and independent verification of the factual claims the change makes
+   - **`openspec-summarize-change`** — writes a short orientation summary of a change to `summary.md`, in English or pt-BR
 
 ---
 
@@ -31,8 +33,8 @@ opsx-read ./docs
 # Serve a single file, open browser automatically
 opsx-read CONTRIBUTING.md --open
 
-# Install the review skill into this project
-opsx-skills install openspec-review-change --project
+# Install the skills into this project
+opsx-skills install openspec-review-change openspec-summarize-change --project
 ```
 
 The command prints the URL it bound, along with the project and what it is
@@ -127,7 +129,7 @@ to the archive when the open set is empty.
 
 ---
 
-## Install the review skill
+## Install the skills
 
 The package ships a second command, **`opsx-skills`**, that installs and removes
 the skills this package ships. It reads them from its own installed package, so
@@ -141,10 +143,10 @@ opsx-skills
 # Install into this project — <project-root>/.claude/skills/
 opsx-skills install openspec-review-change --project
 
-# Install for every project you work on — ~/.claude/skills/
-opsx-skills install openspec-review-change --user
+# Install both, for every project you work on — ~/.claude/skills/
+opsx-skills install openspec-review-change openspec-summarize-change --user
 
-# Remove it again
+# Remove one again
 opsx-skills remove openspec-review-change --project
 ```
 
@@ -205,7 +207,7 @@ Run 'opsx-skills --help' for usage.
 
 **Other tools:** `opsx-skills` writes to the Claude Code paths. For anything
 else, see the [OpenSpec supported tools docs](https://github.com/Fission-AI/OpenSpec/blob/main/docs/supported-tools.md)
-for the right directory and copy `skills/openspec-review-change` there.
+for the right directory and copy the skill directory there.
 
 ### Using the review skill
 
@@ -222,6 +224,32 @@ You can also pass a change name explicitly:
 ```
 /openspec-review-change add-dark-mode
 ```
+
+### Using the summarize skill
+
+```
+/openspec-summarize-change
+/openspec-summarize-change add-dark-mode
+```
+
+Writes a short orientation summary of one change to
+`openspec/changes/<name>/summary.md` — one sentence on what it does, why it
+exists, what it excludes, which capabilities it touches, and every design
+decision together with the alternative it was chosen over.
+
+It reads the **proposal, the design and the specs, and nothing else**. Not
+`tasks.md`, not git, not your source code. So the summary describes what the
+change intends and how it is shaped, never how far along it is — which means it
+stays correct as you work, and only goes out of date when you edit the proposal
+or the design.
+
+Before writing, it always asks whether to write in **English** or **pt-BR**,
+offering the language the change itself is written in as the first option. The
+file is always `summary.md` whichever you pick: the content is translated, the
+path is not.
+
+It describes; it does not judge. There is no verdict, no findings, no claim
+verification — that is what `/openspec-review-change` is for.
 
 ---
 
@@ -284,13 +312,16 @@ openspec-tools/
 │   ├── skill-state.ts         # Installed vs packaged, by comparison
 │   ├── skill-actions.ts       # Copying and deleting, with confirmation
 │   └── types.ts               # Shared types
-├── skills/
-│   └── openspec-review-change/
-│       ├── SKILL.md    # The review skill (install with opsx-skills)
-│       └── references/ # Loaded on demand during a review
-│           ├── claim-verification.md
-│           ├── openspec-conventions.md
-│           └── report-template.md
+├── skills/                        # The installable set: any directory here
+│   │                              # holding a SKILL.md is offered by opsx-skills
+│   ├── openspec-review-change/
+│   │   ├── SKILL.md    # The review skill
+│   │   └── references/ # Loaded on demand during a review
+│   │       ├── claim-verification.md
+│   │       ├── openspec-conventions.md
+│   │       └── report-template.md
+│   └── openspec-summarize-change/
+│       └── SKILL.md    # The summarize skill, skeleton included inline
 └── README.md
 ```
 
