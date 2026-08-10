@@ -99,8 +99,8 @@ npm install -g github:jnerytech/openspec-tools#v0.1.0
 npm install -g git+https://github.com/jnerytech/openspec-tools.git
 ```
 
-The package builds itself on install (`prepare` runs `tsc`), so `opsx-read`
-is on your `PATH` right after.
+The compiled `dist/` is committed, so the install needs no build step —
+`opsx-read` lands on your `PATH` right away.
 
 To update later, run the same command again.
 
