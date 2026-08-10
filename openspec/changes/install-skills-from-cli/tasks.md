@@ -66,8 +66,8 @@
 
 ## 10. Verification
 
-- [ ] 10.1 Run `npm run compile` and commit the `dist/` output, since installs from a git ref run no build step
-- [ ] 10.2 Verify from a global install that `opsx-skills` finds its packaged skills and installs to both destinations
+- [x] 10.1 Run `npm run compile` and commit the `dist/` output, since installs from a git ref run no build step
+- [x] 10.2 Verify from a global install that `opsx-skills` finds its packaged skills and installs to both destinations
 - [x] 10.3 Verify that a skill directory present at a destination but not shipped by the package is never listed, offered, or removed — check specifically against the OpenSpec skills in this repo's own `.claude/skills/`
 - [x] 10.4 Verify a piped invocation missing a destination fails with guidance instead of hanging or defaulting
 - [x] 10.5 Verify overwrite and removal of a locally modified copy both warn and respect a declined confirmation
