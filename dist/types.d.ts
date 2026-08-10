@@ -47,6 +47,36 @@ export interface ProjectIdentity {
     /** The root's basename. */
     name: string;
 }
+/** A skill the package ships, named by its directory — which is its `/command`. */
+export interface PackagedSkill {
+    name: string;
+    /** Absolute path inside the installed package. */
+    path: string;
+}
+export type DestinationId = "project" | "user";
+/** Somewhere a skill may be installed, always carrying the path it writes. */
+export interface Destination {
+    id: DestinationId;
+    /** How the destination is named to the user. */
+    label: string;
+    /** Absolute path of the `.claude/skills/` directory itself. */
+    skillsDir: string;
+}
+/**
+ * What is at a destination for one packaged skill, derived by comparison every
+ * time it is asked for. No install writes a record, so a skill copied into
+ * place by hand is classified exactly like one the installer placed.
+ */
+export type SkillState = {
+    kind: "absent";
+} | {
+    kind: "identical";
+} | {
+    kind: "differs";
+} | {
+    kind: "unreadable";
+    reason: string;
+};
 export interface ServerOptions {
     /** What the user asked for. Absent means the reader derives a port itself. */
     requestedPort?: number;
