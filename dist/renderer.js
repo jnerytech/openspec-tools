@@ -267,6 +267,41 @@ const CSS = `
   }
   .change-link:hover { text-decoration: underline; }
 
+  /* ── Archived ── */
+  .section-heading {
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 2.5rem 0 .75rem;
+  }
+  .section-note {
+    font-family: var(--font-body);
+    font-size: .85rem;
+    color: var(--muted);
+    margin-bottom: .75rem;
+  }
+  .archive-toggle {
+    display: inline-block;
+    font-family: var(--font-body);
+    font-size: .825rem;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+    margin-top: .6rem;
+  }
+  .archive-toggle:hover { text-decoration: underline; }
+  .archived-banner {
+    font-family: var(--font-body);
+    font-size: .875rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--muted);
+    border-radius: 6px;
+    padding: .75rem 1rem;
+    margin-bottom: 1.5rem;
+    color: var(--muted);
+  }
+
   .empty-state {
     text-align: center;
     padding: 3rem 1rem;
@@ -307,7 +342,56 @@ function pageShell(title, body, extraHead = "") {
 </body>
 </html>`;
 }
-export function renderIndex(changes, mode) {
+const HIDDEN_ARCHIVE = { current: false, initial: false };
+/** Single place where links are built, so the archive state is never dropped. */
+function linkTo(path, view, state = view.current) {
+    if (state === view.initial)
+        return path;
+    const sep = path.includes("?") ? "&" : "?";
+    return `${path}${sep}archived=${state ? "1" : "0"}`;
+}
+function artifactMeta(change) {
+    const count = `${change.artifacts.length} artifact${change.artifacts.length !== 1 ? "s" : ""}`;
+    return `${count} · ${change.artifacts.map((a) => escHtml(a.name)).join(", ")}`;
+}
+function changeItem(name, meta, href) {
+    return `
+    <li class="change-item">
+      <div>
+        <div class="change-name">${escHtml(name)}</div>
+        <div class="change-meta">${meta}</div>
+      </div>
+      <a class="change-link" href="${href}">Read →</a>
+    </li>`;
+}
+function archivedList(changes, view) {
+    if (changes.length === 0) {
+        return `<p class="section-note">There are no archived changes.</p>`;
+    }
+    const items = changes
+        .map((c) => {
+        const date = c.archived?.date;
+        const meta = date
+            ? `Archived ${escHtml(date)} · ${artifactMeta(c)}`
+            : artifactMeta(c);
+        return changeItem(c.archived?.displayName ?? c.name, meta, linkTo(`/archived/${encodeURIComponent(c.slug)}`, view));
+    })
+        .join("");
+    return `<ul class="change-list" role="list">${items}</ul>`;
+}
+export function renderIndex(changes, changesDir, options = {}) {
+    const view = options.view ?? HIDDEN_ARCHIVE;
+    const archivedChanges = options.archivedChanges ?? [];
+    if (options.archiveOnly) {
+        const body = `
+    <header class="site-header" role="banner">
+      <span class="brand">openspec-tools</span>
+      <h1>Archived Changes</h1>
+      <p class="subtitle">${escHtml(changesDir)}/archive · ${archivedChanges.length} change${archivedChanges.length !== 1 ? "s" : ""} found</p>
+    </header>
+    <main id="main">${archivedList(archivedChanges, view)}</main>`;
+        return pageShell("Archived Changes", body);
+    }
     const listHtml = changes.length === 0
         ? `<div class="empty-state">
           <p>No open changes found.</p>
@@ -315,26 +399,25 @@ export function renderIndex(changes, mode) {
         </div>`
         : `<ul class="change-list" role="list">
           ${changes
-            .map((c) => `
-            <li class="change-item">
-              <div>
-                <div class="change-name">${escHtml(c.name)}</div>
-                <div class="change-meta">${c.artifacts.length} artifact${c.artifacts.length !== 1 ? "s" : ""} · ${c.artifacts.map((a) => escHtml(a.name)).join(", ")}</div>
-              </div>
-              <a class="change-link" href="/change/${encodeURIComponent(c.slug)}">Read →</a>
-            </li>`)
+            .map((c) => changeItem(c.name, artifactMeta(c), linkTo(`/change/${encodeURIComponent(c.slug)}`, view)))
             .join("")}
         </ul>`;
+    const archivedSection = view.current
+        ? `<h2 class="section-heading">Archived changes</h2>
+       ${archivedList(archivedChanges, view)}`
+        : "";
+    const toggle = `<a class="archive-toggle" href="${linkTo("/", view, !view.current)}">${view.current ? "Hide archived changes" : "Show archived changes"}</a>`;
     const body = `
     <header class="site-header" role="banner">
       <span class="brand">openspec-tools</span>
       <h1>Open Changes</h1>
-      <p class="subtitle">${escHtml(mode)} · ${changes.length} change${changes.length !== 1 ? "s" : ""} found</p>
+      <p class="subtitle">${escHtml(changesDir)} · ${changes.length} change${changes.length !== 1 ? "s" : ""} found</p>
+      ${toggle}
     </header>
-    <main id="main">${listHtml}</main>`;
+    <main id="main">${listHtml}${archivedSection}</main>`;
     return pageShell("Open Changes", body);
 }
-export async function renderChange(change) {
+export async function renderChange(change, view = HIDDEN_ARCHIVE) {
     const tocItems = change.artifacts
         .map((a, i) => `<li><a href="#artifact-${i}">${escHtml(a.name)}</a></li>`)
         .join("");
@@ -350,18 +433,27 @@ export async function renderChange(change) {
           <div class="md-body">${html}</div>
         </section>`;
     }));
+    const title = change.archived?.displayName ?? change.name;
+    // States the context out loud, so an old task list is not read as work still
+    // outstanding. Open changes carry nothing here.
+    const banner = change.archived
+        ? `<p class="archived-banner" role="note">${change.archived.date
+            ? `Archived on ${escHtml(change.archived.date)} — this is history, not pending work.`
+            : `Archived — this is history, not pending work.`}</p>`
+        : "";
     const body = `
     <header class="site-header" role="banner">
-      <a class="brand" href="/">← openspec-tools</a>
-      <h1>${escHtml(change.name)}</h1>
+      <a class="brand" href="${linkTo("/", view)}">← openspec-tools</a>
+      <h1>${escHtml(title)}</h1>
       <p class="subtitle">${change.artifacts.length} artifact${change.artifacts.length !== 1 ? "s" : ""}</p>
     </header>
+    ${banner}
     <nav class="toc" aria-label="Contents">
       <div class="toc-label">On this page</div>
       <ol>${tocItems}</ol>
     </nav>
     <main id="main">${sections.join("")}</main>`;
-    return pageShell(change.name, body);
+    return pageShell(title, body);
 }
 export async function renderFiles(files, title, backHref) {
     const tocItems = files

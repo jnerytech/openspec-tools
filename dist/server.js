@@ -1,6 +1,6 @@
 import { createServer } from "http";
 import { execSync } from "child_process";
-import { scanChanges, collectMarkdownFiles } from "./scanner.js";
+import { scanChanges, scanArchivedChanges, collectMarkdownFiles, } from "./scanner.js";
 import { renderIndex, renderChange, renderFiles, renderSingleFile, render404, } from "./renderer.js";
 function send(res, status, html) {
     res.writeHead(status, {
@@ -9,14 +9,37 @@ function send(res, status, html) {
     });
     res.end(html);
 }
-async function handle(req, res, mode) {
+/**
+ * The invocation sets the initial state; the query parameter carries the
+ * current one. The server already re-scans per request, so revealing the
+ * archive costs a reload rather than a restart.
+ */
+function archiveView(url, initial) {
+    const param = url.searchParams.get("archived");
+    const current = param === null ? initial : param !== "0";
+    return { current, initial };
+}
+async function handle(req, res, mode, initialArchived) {
     const url = new URL(req.url ?? "/", "http://localhost");
     const pathname = url.pathname;
+    const view = archiveView(url, initialArchived);
     // ── Index / ──────────────────────────────────────────────
     if (pathname === "/" || pathname === "") {
         if (mode.kind === "changes") {
             const changes = await scanChanges(mode.changesDir);
-            send(res, 200, renderIndex(changes, mode.changesDir));
+            const archivedChanges = view.current
+                ? await scanArchivedChanges(mode.changesDir)
+                : [];
+            send(res, 200, renderIndex(changes, mode.changesDir, { view, archivedChanges }));
+            return;
+        }
+        if (mode.kind === "archive") {
+            const archivedChanges = await scanArchivedChanges(mode.changesDir);
+            send(res, 200, renderIndex([], mode.changesDir, {
+                view,
+                archivedChanges,
+                archiveOnly: true,
+            }));
             return;
         }
         if (mode.kind === "change") {
@@ -26,8 +49,9 @@ async function handle(req, res, mode) {
                 slug: mode.changeName,
                 dirPath: mode.dirPath,
                 artifacts: files,
+                archived: mode.archived,
             };
-            send(res, 200, await renderChange(change));
+            send(res, 200, await renderChange(change, view));
             return;
         }
         if (mode.kind === "dir") {
@@ -51,7 +75,23 @@ async function handle(req, res, mode) {
             send(res, 404, render404());
             return;
         }
-        send(res, 200, await renderChange(change));
+        send(res, 200, await renderChange(change, view));
+        return;
+    }
+    // ── /archived/:slug ──────────────────────────────────────
+    // Its own prefix, so an archived change and an open change with the same
+    // display name never resolve to each other.
+    const archivedMatch = pathname.match(/^\/archived\/([^/]+)$/);
+    if (archivedMatch &&
+        (mode.kind === "changes" || mode.kind === "archive")) {
+        const slug = decodeURIComponent(archivedMatch[1]);
+        const archivedChanges = await scanArchivedChanges(mode.changesDir);
+        const change = archivedChanges.find((c) => c.slug === slug || c.name === slug);
+        if (!change) {
+            send(res, 404, render404());
+            return;
+        }
+        send(res, 200, await renderChange(change, view));
         return;
     }
     send(res, 404, render404());
@@ -68,9 +108,9 @@ function openBrowserAt(url) {
     catch { /* ignore */ }
 }
 export function startServer(opts) {
-    const { port, mode, openBrowser } = opts;
+    const { port, mode, openBrowser, archived } = opts;
     const server = createServer((req, res) => {
-        handle(req, res, mode).catch((err) => {
+        handle(req, res, mode, archived).catch((err) => {
             console.error("[openspec-tools]", err);
             send(res, 500, `<pre style="padding:2rem">Error: ${String(err)}</pre>`);
         });

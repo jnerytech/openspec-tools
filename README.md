@@ -22,6 +22,9 @@ opsx-read
 # Read a specific change
 opsx-read add-dark-mode
 
+# List open changes plus the archived ones
+opsx-read --archived
+
 # Serve any folder of Markdown files
 opsx-read ./docs
 
@@ -37,6 +40,7 @@ Then open `http://localhost:4242` in your browser and use **Read Aloud** (Edge, 
 |---|---|---|
 | `-p, --port <n>` | `4242` | Port to listen on |
 | `-o, --open` | `false` | Open browser automatically |
+| `-a, --archived` | `false` | Include archived changes on the first page load |
 | `-h, --help` | — | Show help |
 | `-v, --version` | — | Print the version and exit |
 
@@ -58,14 +62,38 @@ Run 'opsx-read --help' for usage.
 |---|---|
 | *(nothing)* | All open changes in `openspec/changes/` |
 | `<change-name>` | That change's folder: `openspec/changes/<name>/` |
+| `<archived-name>` | That archived change, named with or without its `YYYY-MM-DD-` prefix |
+| `openspec/changes/archive` | A list of the archived changes |
 | `<relative-path/to/folder>` | All `.md` files in that folder |
 | `<relative-path/to/file.md>` | That single file |
 
 If a target can't be resolved, the error lists every location that was tried
-and suggests the open change names that look closest.
+and suggests the change names that look closest — archived ones are marked as
+archived so they aren't mistaken for open work.
+
+When a name matches both an open and an archived change, the open one is
+served and the archived twin is named on stderr.
 
 > `help` is read as a command, not a target. A change actually named `help`
 > must be addressed by path: `opsx-read openspec/changes/help`.
+
+### Archived changes
+
+Archived changes never appear unless you ask for them — there is no fallback
+to the archive when the open set is empty.
+
+- `--archived` decides whether the **first** page load includes them.
+- The index carries a **Show / Hide archived changes** link that flips the
+  state per request, so revealing history costs a reload, not a restart.
+- They render in their own section below the open changes, newest first, each
+  showing the archive date read from its directory name. A directory without a
+  valid `YYYY-MM-DD-` prefix is still listed, just without a date.
+- An archived change page is labelled as archived, with its date, so an old
+  task list isn't read as pending work.
+
+> **Breaking in this release:** `opsx-read openspec/changes/archive` used to
+> serve one page merging every archived change's artifacts. It now serves the
+> archive as a list of archived changes, each addressable on its own.
 
 ---
 

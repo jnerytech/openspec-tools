@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 import { existsSync, statSync } from "fs";
-import { resolve, relative } from "path";
+import { resolve, relative, basename, sep } from "path";
 import { createRequire } from "module";
 import { Command, InvalidArgumentError } from "commander";
 import type { TargetMode, ServerOptions } from "./types.js";
 import { startServer } from "./server.js";
-import { scanChanges } from "./scanner.js";
+import {
+  scanChanges,
+  scanArchivedChanges,
+  parseArchivedDirName,
+  ARCHIVE_DIR_NAME,
+} from "./scanner.js";
 
 const requirePkg = createRequire(import.meta.url);
 const pkg = requirePkg("../package.json") as { version: string };
@@ -50,12 +55,21 @@ function editDistance(a: string, b: string): number {
   return prev[cols - 1];
 }
 
-function closeMatches(target: string, names: string[]): string[] {
+interface Suggestion {
+  name: string;
+  archived: boolean;
+}
+
+function closeMatches(target: string, candidates: Suggestion[]): Suggestion[] {
   const needle = target.toLowerCase();
-  return names.filter((name) => {
+  return candidates.filter(({ name }) => {
     const candidate = name.toLowerCase();
     return candidate.includes(needle) || editDistance(needle, candidate) <= 3;
   });
+}
+
+function suggestionLine({ name, archived }: Suggestion): string {
+  return `  ${name}${archived ? "  (archived)" : ""}`;
 }
 
 function displayPath(abs: string): string {
@@ -63,10 +77,20 @@ function displayPath(abs: string): string {
   return rel && !rel.startsWith("..") ? `./${rel}` : abs;
 }
 
-async function openChangeNames(changesDir: string): Promise<string[]> {
+async function openChangeNames(changesDir: string): Promise<Suggestion[]> {
   if (!existsSync(changesDir)) return [];
   const changes = await scanChanges(changesDir);
-  return changes.map((c) => c.name);
+  return changes.map((c) => ({ name: c.name, archived: false }));
+}
+
+/** Archived changes are suggested by the name that actually resolves. */
+async function archivedChangeNames(changesDir: string): Promise<Suggestion[]> {
+  if (!existsSync(changesDir)) return [];
+  const changes = await scanArchivedChanges(changesDir);
+  return changes.map((c) => ({
+    name: c.archived?.displayName ?? c.name,
+    archived: true,
+  }));
 }
 
 /** Lists every location tried, then helps the user find the right name. */
@@ -76,15 +100,20 @@ async function reportTargetNotFound(
   changesDir: string
 ): Promise<never> {
   const details = attempted.map((p) => `  ${displayPath(p)}`);
-  const names = await openChangeNames(changesDir);
+  const open = await openChangeNames(changesDir);
+  const archived = await archivedChangeNames(changesDir);
+  const close = closeMatches(target, [...open, ...archived]);
 
-  if (names.length === 0) {
+  if (close.length > 0) {
+    details.push("", "Did you mean?");
+    for (const suggestion of close) details.push(suggestionLine(suggestion));
+  }
+
+  if (open.length === 0) {
     details.push("", `There are no open changes in ${DEFAULT_CHANGES_DIR}/.`);
-  } else {
-    const close = closeMatches(target, names);
-    const shown = close.length > 0 ? close : names;
-    details.push("", close.length > 0 ? "Did you mean?" : "Available open changes:");
-    for (const name of shown) details.push(`  ${name}`);
+  } else if (close.length === 0) {
+    details.push("", "Available open changes:");
+    for (const suggestion of open) details.push(suggestionLine(suggestion));
   }
 
   details.push("");
@@ -106,16 +135,57 @@ async function resolveDefaultMode(): Promise<TargetMode> {
 
   const changes = await scanChanges(changesDir);
   if (changes.length === 0) {
-    const archiveOnly = existsSync(resolve(changesDir, "archive"));
+    // Naming the option is the whole discovery path — the archive is never
+    // displayed just because the open set happens to be empty.
+    const archiveOnly = existsSync(resolve(changesDir, ARCHIVE_DIR_NAME));
     console.warn(
       `[openspec-tools] No open changes in ${displayPath(changesDir)}/` +
         (archiveOnly ? " (only archive/ was found)." : ".") +
-        `\n  Serving anyway — create a change and reload.\n` +
-        `  ${HELP_HINT}\n`
+        `\n  Serving anyway — create a change and reload.` +
+        (archiveOnly
+          ? `\n  Run 'opsx-read --archived' to read the archived changes.`
+          : "") +
+        `\n  ${HELP_HINT}\n`
     );
   }
 
   return { kind: "changes", changesDir };
+}
+
+function isDirectory(path: string): boolean {
+  return existsSync(path) && statSync(path).isDirectory();
+}
+
+function archivedChangeMode(dirPath: string): TargetMode {
+  const dirName = basename(dirPath);
+  return {
+    kind: "change",
+    changeName: dirName,
+    dirPath,
+    archived: parseArchivedDirName(dirName),
+  };
+}
+
+/**
+ * The open change wins a name conflict — but the archived twin is named out
+ * loud, following the same stance as the rest of the error guidance: pick the
+ * likely intent, then point at the other option.
+ */
+async function warnArchivedTwin(
+  target: string,
+  changesBase: string
+): Promise<void> {
+  const archived = await scanArchivedChanges(changesBase);
+  const twin = archived.find(
+    (c) => c.name === target || c.archived?.displayName === target
+  );
+  if (!twin) return;
+
+  console.warn(
+    `[openspec-tools] Serving the open change '${target}'.\n` +
+      `  An archived change of the same name also exists: ${twin.name}\n` +
+      `  Read it with: opsx-read ${twin.name}\n`
+  );
 }
 
 async function resolveMode(target: string | undefined): Promise<TargetMode> {
@@ -123,14 +193,39 @@ async function resolveMode(target: string | undefined): Promise<TargetMode> {
 
   const abs = resolve(process.cwd(), target);
   const changesBase = resolve(process.cwd(), DEFAULT_CHANGES_DIR);
+  const archiveBase = resolve(changesBase, ARCHIVE_DIR_NAME);
 
   if (!existsSync(abs)) {
-    // Maybe it's a change name (relative to openspec/changes/)
     const asChange = resolve(changesBase, target);
-    if (existsSync(asChange) && statSync(asChange).isDirectory()) {
+    const asArchived = resolve(archiveBase, target);
+
+    // 'archive' names the archive itself, not a change inside it.
+    if (asChange === archiveBase && isDirectory(archiveBase)) {
+      return { kind: "archive", changesDir: changesBase };
+    }
+
+    // An open change name wins, out loud.
+    if (isDirectory(asChange)) {
+      await warnArchivedTwin(target, changesBase);
       return { kind: "change", changeName: target, dirPath: asChange };
     }
-    return reportTargetNotFound(target, [abs, asChange], changesBase);
+
+    // Archived directory name, date prefix and all.
+    if (isDirectory(asArchived)) return archivedChangeMode(asArchived);
+
+    // Archived display name, without the date prefix.
+    const archived = await scanArchivedChanges(changesBase);
+    const match = archived.find((c) => c.archived?.displayName === target);
+    if (match) {
+      return {
+        kind: "change",
+        changeName: match.name,
+        dirPath: match.dirPath,
+        archived: match.archived,
+      };
+    }
+
+    return reportTargetNotFound(target, [abs, asChange, asArchived], changesBase);
   }
 
   const stat = statSync(abs);
@@ -146,11 +241,21 @@ async function resolveMode(target: string | undefined): Promise<TargetMode> {
   }
 
   if (stat.isDirectory()) {
+    // The archive itself is a listing, not one change holding every archived
+    // artifact — which is what the generic "under changes/" branch produced.
+    if (abs === archiveBase) {
+      return { kind: "archive", changesDir: changesBase };
+    }
+
+    if (abs.startsWith(archiveBase + sep)) {
+      return archivedChangeMode(abs);
+    }
+
     // Is it an openspec change directory?
     const isUnderChanges = abs.startsWith(changesBase) && abs !== changesBase;
 
     if (isUnderChanges) {
-      const changeName = abs.split("/").pop() ?? target;
+      const changeName = basename(abs);
       return { kind: "change", changeName, dirPath: abs };
     }
 
@@ -174,6 +279,7 @@ program
   .argument("[target]", "change name, folder, or .md file (default: openspec/changes/)")
   .option("-p, --port <n>", "port to listen on", parsePort, DEFAULT_PORT)
   .option("-o, --open", "open browser automatically", false)
+  .option("-a, --archived", "include archived changes", false)
   .version(pkg.version, "-v, --version", "output the version number")
   .showHelpAfterError(HELP_HINT)
   .addHelpText(
@@ -182,13 +288,18 @@ program
 TARGET
   (none)              List all open changes in ${DEFAULT_CHANGES_DIR}/
   <change-name>       Serve a specific change (name or path)
+  <archived-name>     Serve an archived change, with or without its date prefix
+  ${DEFAULT_CHANGES_DIR}/archive
+                      List the archived changes
   <folder>            Serve all .md files in a folder
   <file.md>           Serve a single Markdown file
   help                Show this help
 
 EXAMPLES
   opsx-read                          # list open changes
+  opsx-read --archived               # list open and archived changes
   opsx-read add-dark-mode            # read a change
+  opsx-read 2026-08-10-add-dark-mode # read an archived change
   opsx-read ./docs                   # serve a docs folder
   opsx-read CONTRIBUTING.md -o       # open a file in browser
   opsx-read -p 8080                  # custom port
@@ -198,7 +309,10 @@ NOTE
   'help' must be addressed by path: opsx-read ${DEFAULT_CHANGES_DIR}/help
 `
   )
-  .action(async (target: string | undefined, options: { port: number; open: boolean }) => {
+  .action(async (
+    target: string | undefined,
+    options: { port: number; open: boolean; archived: boolean }
+  ) => {
     // 'help' is intercepted here rather than registered as a subcommand, which
     // would add a "Commands:" section to a CLI that has exactly one job.
     if (target === "help") {
@@ -210,6 +324,7 @@ NOTE
       port: options.port,
       mode,
       openBrowser: options.open,
+      archived: options.archived,
     };
     startServer(opts);
   });

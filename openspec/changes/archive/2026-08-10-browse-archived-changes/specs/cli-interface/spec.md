@@ -1,36 +1,4 @@
-# cli-interface Specification
-
-## Purpose
-Defines the command-line invocation surface of `opsx-read`: how options and targets are interpreted, what help and version output look like, and how the tool reports usage errors so that a mistyped command always tells the user how to recover.
-## Requirements
-### Requirement: Usage help is available on demand
-
-The CLI SHALL print usage information on request and exit successfully without starting the web server. Usage output SHALL go to standard output and SHALL list every supported option, every accepted target form, and at least one example invocation.
-
-#### Scenario: Long help flag
-
-- **WHEN** the user runs `opsx-read --help`
-- **THEN** usage information is written to standard output, the process exits with code 0, and no server is started
-
-#### Scenario: Short help flag
-
-- **WHEN** the user runs `opsx-read -h`
-- **THEN** the same usage information is written to standard output and the process exits with code 0
-
-#### Scenario: Help as a bare subcommand
-
-- **WHEN** the user runs `opsx-read help`
-- **THEN** the same usage information is written to standard output and the process exits with code 0
-- **AND** `help` is not interpreted as a target name
-
-### Requirement: Version is reported without side effects
-
-The CLI SHALL report its own version on request and exit successfully. Requesting the version SHALL NOT start the web server, bind a port, or read the target directory.
-
-#### Scenario: Version flag
-
-- **WHEN** the user runs `opsx-read --version` or `opsx-read -v`
-- **THEN** the package version is written to standard output, the process exits with code 0, and no server is started
+## ADDED Requirements
 
 ### Requirement: Including archived changes is an explicit option
 
@@ -52,40 +20,6 @@ The CLI SHALL provide an option that includes archived changes in the reader. Th
 - **WHEN** the user runs `opsx-read` without that option and without naming an archived change
 - **THEN** the reader is started with archived changes excluded
 
-### Requirement: Unrecognized options are rejected
-
-The CLI SHALL treat any option it does not recognize as a usage error. An unrecognized option SHALL NOT be discarded, and the remaining arguments SHALL NOT be reinterpreted as a target. The error SHALL be written to standard error, SHALL name the offending option verbatim, and SHALL exit with code 1 without starting the server.
-
-#### Scenario: Unknown option is reported, not swallowed
-
-- **WHEN** the user runs `opsx-read --bananas`
-- **THEN** standard error reports that `--bananas` is not a known option, the process exits with code 1, and no server is started
-
-#### Scenario: Mistyped option does not become a target
-
-- **WHEN** the user runs `opsx-read --prot 8080`
-- **THEN** the error names `--prot` as the problem
-- **AND** the error does not report `8080` as a missing path or target
-
-#### Scenario: Near-miss option gets a suggestion
-
-- **WHEN** an unrecognized option closely resembles a supported option, as with `--prot` and `--port`
-- **THEN** the error additionally suggests the supported option
-
-### Requirement: Every usage error points to help
-
-Any invocation that fails because of how the command was typed SHALL end its output with a line telling the user to run `opsx-read --help`. The CLI SHALL NOT print full usage text in place of the error message, so that the error itself remains the first thing the user reads.
-
-#### Scenario: Failed invocation offers a next step
-
-- **WHEN** any usage error occurs, including an unknown option, an invalid port, or an unresolvable target
-- **THEN** the final line of the error output directs the user to `opsx-read --help`
-
-#### Scenario: Error is not buried under usage text
-
-- **WHEN** a usage error occurs
-- **THEN** the full usage listing is not printed alongside the error
-
 ### Requirement: An archived change can be given as a target
 
 The CLI SHALL resolve an archived change named as a target, whether the user types the archived directory name including its date prefix or the display name without it. Naming an archived change SHALL be sufficient to read it; the option that includes archived changes SHALL NOT additionally be required. If the name matches both an open change and an archived change, the open change SHALL win, and the CLI SHALL report that an archived change of the same name also exists.
@@ -105,6 +39,8 @@ The CLI SHALL resolve an archived change named as a target, whether the user typ
 - **WHEN** the target names both an open change and an archived change
 - **THEN** the CLI serves the open change
 - **AND** the CLI reports that an archived change of the same name exists
+
+## MODIFIED Requirements
 
 ### Requirement: Target resolution failure reports every location tried
 
@@ -164,18 +100,3 @@ When invoked with no target, the CLI SHALL start the server even if there are no
 - **WHEN** the user runs `opsx-read` with no target and `openspec/changes/` does not exist
 - **THEN** the CLI reports that the directory was not found and directs the user to `opsx-read --help`
 - **AND** the server still starts
-
-### Requirement: Exit codes distinguish success from usage failure
-
-The CLI SHALL exit with code 0 when it completes a requested informational action, and with code 1 when the invocation could not be carried out because of how it was typed.
-
-#### Scenario: Informational actions succeed
-
-- **WHEN** the user requests help or the version
-- **THEN** the process exits with code 0
-
-#### Scenario: Usage errors fail
-
-- **WHEN** the invocation fails because of an unknown option, an invalid port value, or an unresolvable target
-- **THEN** the process exits with code 1
-
