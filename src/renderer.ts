@@ -8,29 +8,28 @@ const CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:       #fafaf8;
-    --surface:  #ffffff;
-    --border:   #e2e0da;
-    --text:     #1a1714;
-    --muted:    #6b6760;
-    --accent:   #2563eb;
-    --code-bg:  #f3f2ee;
-    --tag-bg:   #eef3ff;
-    --tag-text: #1d4ed8;
-  }
+    /* Always light, like a rendered .md on github.com — declaring the
+       scheme also keeps scrollbars and form controls light when the OS
+       is in dark mode. */
+    color-scheme: light;
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg:       #111110;
-      --surface:  #1c1c1a;
-      --border:   #2e2d29;
-      --text:     #e8e6e0;
-      --muted:    #9b9890;
-      --accent:   #60a5fa;
-      --code-bg:  #242420;
-      --tag-bg:   #1e2d50;
-      --tag-text: #93c5fd;
-    }
+    --bg:       #ffffff;
+    --surface:  #f6f8fa;
+    --border:   #d1d9e0;
+    --text:     #1f2328;
+    --muted:    #59636e;
+    --accent:   #0969da;
+    --code-bg:  #f6f8fa;
+    --tag-bg:   #ddf4ff;
+    --tag-text: #0969da;
+
+    /* GitHub's markdown font stacks, so a spec reads here the way it
+       reads in a rendered .md on github.com */
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+                 Helvetica, Arial, sans-serif, "Apple Color Emoji",
+                 "Segoe UI Emoji";
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+                 "Liberation Mono", monospace;
   }
 
   html { font-size: 18px; -webkit-text-size-adjust: 100%; }
@@ -38,7 +37,7 @@ const CSS = `
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: "Georgia", "Times New Roman", serif;
+    font-family: var(--font-body);
     line-height: 1.75;
     padding: 2rem 1rem 6rem;
   }
@@ -51,7 +50,7 @@ const CSS = `
     position: absolute; top: -999px; left: 1rem;
     background: var(--accent); color: #fff;
     padding: .3rem .8rem; border-radius: 4px;
-    font-family: system-ui, sans-serif; font-size: .875rem;
+    font-family: var(--font-body); font-size: .875rem;
   }
   .skip-link:focus { top: 1rem; }
 
@@ -62,7 +61,7 @@ const CSS = `
     margin-bottom: 2rem;
   }
   .site-header .brand {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: .8rem;
     font-weight: 600;
     letter-spacing: .06em;
@@ -78,7 +77,7 @@ const CSS = `
     line-height: 1.25;
   }
   .site-header .subtitle {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
     color: var(--muted);
     margin-top: .3rem;
@@ -93,7 +92,7 @@ const CSS = `
     margin-bottom: 2.5rem;
   }
   .toc-label {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: .75rem;
     font-weight: 600;
     letter-spacing: .06em;
@@ -104,7 +103,7 @@ const CSS = `
   .toc ol { list-style: decimal; padding-left: 1.25rem; }
   .toc li { margin: .2rem 0; }
   .toc a {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: .9rem;
     color: var(--accent);
     text-decoration: none;
@@ -125,7 +124,7 @@ const CSS = `
     border-bottom: 2px solid var(--border);
   }
   .artifact-tag {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: .7rem;
     font-weight: 700;
     letter-spacing: .06em;
@@ -139,13 +138,13 @@ const CSS = `
     font-size: 1.15rem;
     font-weight: 600;
     color: var(--muted);
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
   }
 
   /* ── Markdown content ── */
   .md-body h1, .md-body h2, .md-body h3,
   .md-body h4, .md-body h5, .md-body h6 {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     line-height: 1.3;
     margin: 1.75rem 0 .6rem;
     scroll-margin-top: 1rem;
@@ -169,7 +168,7 @@ const CSS = `
   .md-body a { color: var(--accent); }
 
   .md-body code {
-    font-family: "SF Mono", "Fira Code", monospace;
+    font-family: var(--font-mono);
     font-size: .85em;
     background: var(--code-bg);
     padding: .1em .35em;
@@ -196,7 +195,7 @@ const CSS = `
   .md-body pre::before {
     display: block;
     content: "[ código ]";
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: .7rem;
     font-weight: 600;
     letter-spacing: .05em;
@@ -223,7 +222,7 @@ const CSS = `
     border-collapse: collapse;
     width: 100%;
     margin: 1rem 0;
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
   }
   .md-body th, .md-body td {
@@ -251,18 +250,18 @@ const CSS = `
   }
   .change-item:hover { border-color: var(--accent); }
   .change-name {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     font-weight: 600;
     font-size: 1rem;
     color: var(--text);
   }
   .change-meta {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: .8rem;
     color: var(--muted);
   }
   .change-link {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: .825rem;
     font-weight: 600;
     color: var(--accent);
@@ -275,13 +274,13 @@ const CSS = `
     text-align: center;
     padding: 3rem 1rem;
     color: var(--muted);
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
   }
   .empty-state p { margin: .5rem 0; }
 
   /* ── Back nav ── */
   .back-nav {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-body);
     font-size: .875rem;
     margin-bottom: 1.5rem;
   }
