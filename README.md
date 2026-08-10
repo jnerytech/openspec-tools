@@ -10,8 +10,8 @@ An **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** extension package with
 ## Quick start
 
 ```bash
-# Install globally
-npm install -g openspec-tools
+# Install globally, straight from GitHub
+npm install -g github:jnerytech/openspec-tools
 
 # Go to your project root (where openspec/ lives)
 cd your-project
@@ -86,10 +86,30 @@ You can also pass a change name explicitly:
 
 ---
 
+## Install
+
+```bash
+# Latest from the default branch
+npm install -g github:jnerytech/openspec-tools
+
+# Pin to a tag or commit
+npm install -g github:jnerytech/openspec-tools#v0.1.0
+
+# Or with the full URL
+npm install -g git+https://github.com/jnerytech/openspec-tools.git
+```
+
+The package builds itself on install (`prepare` runs `tsc`), so `opsx-read`
+is on your `PATH` right after.
+
+To update later, run the same command again.
+
+---
+
 ## Build from source
 
 ```bash
-git clone https://github.com/<your-handle>/openspec-tools
+git clone https://github.com/jnerytech/openspec-tools
 cd openspec-tools
 npm install
 npm run build
