@@ -13,7 +13,11 @@
   },
   "keywords": ["openspec", "sdd", "spec-driven", "ai", "reader"],
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
+    "commander": "^14.0.0",
     "marked": "^12.0.0"
   },
   "devDependencies": {

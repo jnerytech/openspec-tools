@@ -38,6 +38,19 @@ Then open `http://localhost:4242` in your browser and use **Read Aloud** (Edge, 
 | `-p, --port <n>` | `4242` | Port to listen on |
 | `-o, --open` | `false` | Open browser automatically |
 | `-h, --help` | — | Show help |
+| `-v, --version` | — | Print the version and exit |
+
+`opsx-read help` works too, as a bare word.
+
+Mistyped flags are rejected rather than ignored, and every error tells you
+where to go next:
+
+```
+$ opsx-read --prot 8080
+error: unknown option '--prot'
+(Did you mean --port?)
+Run 'opsx-read --help' for usage.
+```
 
 ### Target resolution
 
@@ -47,6 +60,12 @@ Then open `http://localhost:4242` in your browser and use **Read Aloud** (Edge, 
 | `<change-name>` | That change's folder: `openspec/changes/<name>/` |
 | `<relative-path/to/folder>` | All `.md` files in that folder |
 | `<relative-path/to/file.md>` | That single file |
+
+If a target can't be resolved, the error lists every location that was tried
+and suggests the open change names that look closest.
+
+> `help` is read as a command, not a target. A change actually named `help`
+> must be addressed by path: `opsx-read openspec/changes/help`.
 
 ---
 
@@ -101,6 +120,8 @@ npm install -g git+https://github.com/jnerytech/openspec-tools.git
 
 The compiled `dist/` is committed, so the install needs no build step —
 `opsx-read` lands on your `PATH` right away.
+
+Requires **Node 20 or newer**.
 
 To update later, run the same command again.
 
