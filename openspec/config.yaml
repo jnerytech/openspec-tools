@@ -30,3 +30,10 @@ schema: spec-driven
 #     archive:
 #       guidance:
 #         - Summarize the archive outcome before finishing
+
+context: |
+  # opsx-tools:artifact-language lang=pt-BR
+  Write every OpenSpec artifact — proposal, design, specs, tasks — in Português (Brasil).
+  This governs the artifacts only: it does not set the language of
+  conversation, of code and comments, or of commit messages.
+  # opsx-tools:artifact-language:end
