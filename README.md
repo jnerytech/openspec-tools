@@ -321,7 +321,9 @@ openspec-tools/
 │   │       ├── openspec-conventions.md
 │   │       └── report-template.md
 │   └── openspec-summarize-change/
-│       └── SKILL.md    # The summarize skill, skeleton included inline
+│       ├── SKILL.md    # The summarize skill
+│       └── references/ # Loaded on demand when the summary is written
+│           └── summary-template.md
 └── README.md
 ```
 
