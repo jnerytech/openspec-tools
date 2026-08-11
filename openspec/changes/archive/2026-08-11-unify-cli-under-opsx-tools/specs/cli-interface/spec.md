@@ -1,8 +1,5 @@
-# cli-interface Specification
+## ADDED Requirements
 
-## Purpose
-Defines the command-line invocation surface of `opsx-tools`: how the binary's capabilities are reached as subcommands, how options and targets are interpreted, what help and version output look like, and how the tool reports usage errors so that a mistyped command always tells the user how to recover.
-## Requirements
 ### Requirement: One binary, one subcommand per capability
 
 The package SHALL install exactly one executable, named `opsx-tools`. Every
@@ -55,6 +52,32 @@ SHALL NOT install, remove, or prompt about skills.
 
 - **WHEN** the user runs `opsx-tools` with no arguments and input is not an interactive terminal
 - **THEN** usage is written to standard output and the process exits with code 0 without waiting for input
+
+### Requirement: A positional word after a verb is always a target
+
+Under the `read` subcommand, every positional word SHALL be interpreted as a
+target. No word SHALL be reserved as a command in that position. A change whose
+name collides with a subcommand name, a verb name, or `help` SHALL be reachable
+by its bare name, without requiring the user to address it by path.
+
+#### Scenario: A change named help is reachable by name
+
+- **WHEN** the user runs `opsx-tools read help` and an open change named `help` exists
+- **THEN** the CLI serves that change
+- **AND** usage information is not printed in its place
+
+#### Scenario: A change whose name collides with a subcommand is reachable by name
+
+- **WHEN** the user runs `opsx-tools read skill` and an open change named `skill` exists
+- **THEN** the CLI serves that change
+
+#### Scenario: An unresolvable positional word is a target error
+
+- **WHEN** the user runs `opsx-tools read list` and no change or path named `list` exists
+- **THEN** the CLI reports `list` as an unresolvable target
+- **AND** the CLI does not report `list` as an unknown command
+
+## MODIFIED Requirements
 
 ### Requirement: Usage help is available on demand
 
@@ -223,30 +246,6 @@ the user reads.
 - **WHEN** a usage error occurs
 - **THEN** the full usage listing is not printed alongside the error
 
-### Requirement: A positional word after a verb is always a target
-
-Under the `read` subcommand, every positional word SHALL be interpreted as a
-target. No word SHALL be reserved as a command in that position. A change whose
-name collides with a subcommand name, a verb name, or `help` SHALL be reachable
-by its bare name, without requiring the user to address it by path.
-
-#### Scenario: A change named help is reachable by name
-
-- **WHEN** the user runs `opsx-tools read help` and an open change named `help` exists
-- **THEN** the CLI serves that change
-- **AND** usage information is not printed in its place
-
-#### Scenario: A change whose name collides with a subcommand is reachable by name
-
-- **WHEN** the user runs `opsx-tools read skill` and an open change named `skill` exists
-- **THEN** the CLI serves that change
-
-#### Scenario: An unresolvable positional word is a target error
-
-- **WHEN** the user runs `opsx-tools read list` and no change or path named `list` exists
-- **THEN** the CLI reports `list` as an unresolvable target
-- **AND** the CLI does not report `list` as an unknown command
-
 ### Requirement: An archived change can be given as a target
 
 The CLI SHALL resolve an archived change named as a target, whether the user
@@ -289,31 +288,6 @@ is not sufficient.
 - **AND** the error lists all three of those locations as locations that were tried
 - **AND** the process exits with code 1
 
-### Requirement: Target failure surfaces the available open changes
-
-When a target cannot be resolved, the CLI SHALL help the user find the right name. If open changes exist, the error SHALL list their names, calling out any that closely resemble the requested target. If no open changes exist, the error SHALL state that plainly rather than listing nothing. The CLI SHALL also consider archived change names when looking for a close match, and SHALL identify any archived suggestion as archived so it is not mistaken for open work.
-
-#### Scenario: Close match is suggested
-
-- **WHEN** the target cannot be resolved and an open change name closely resembles it
-- **THEN** the error presents that change name as a suggestion
-
-#### Scenario: Available changes are listed when no close match exists
-
-- **WHEN** the target cannot be resolved, open changes exist, and none closely resembles the target
-- **THEN** the error lists the available open change names
-
-#### Scenario: Empty change set is stated
-
-- **WHEN** the target cannot be resolved and no open changes exist
-- **THEN** the error states that there are no open changes, rather than presenting an empty list
-
-#### Scenario: Archived name is suggested and marked
-
-- **WHEN** the target cannot be resolved and an archived change name closely resembles it
-- **THEN** the error presents that name as a suggestion
-- **AND** the suggestion is identified as an archived change
-
 ### Requirement: Absence of open changes is explained but still served
 
 When the reader is invoked with no target, the CLI SHALL start the server even
@@ -343,17 +317,3 @@ names SHALL be a complete, runnable invocation.
 - **WHEN** the user runs `opsx-tools read` with no target and `openspec/changes/` does not exist
 - **THEN** the CLI reports that the directory was not found and directs the user to `opsx-tools read --help`
 - **AND** the server still starts
-
-### Requirement: Exit codes distinguish success from usage failure
-
-The CLI SHALL exit with code 0 when it completes a requested informational action, and with code 1 when the invocation could not be carried out because of how it was typed.
-
-#### Scenario: Informational actions succeed
-
-- **WHEN** the user requests help or the version
-- **THEN** the process exits with code 0
-
-#### Scenario: Usage errors fail
-
-- **WHEN** the invocation fails because of an unknown option, an invalid port value, or an unresolvable target
-- **THEN** the process exits with code 1

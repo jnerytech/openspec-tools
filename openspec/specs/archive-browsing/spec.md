@@ -1,7 +1,7 @@
 # archive-browsing Specification
 
 ## Purpose
-Defines how `opsx-read` treats archived changes: when they may be displayed at all, how each one is identified and dated from the archive directory, how they are ordered and kept distinct from open changes, and how an archived change is addressed and labelled so completed work is never mistaken for pending work.
+Defines how `opsx-tools read` treats archived changes: when they may be displayed at all, how each one is identified and dated from the archive directory, how they are ordered and kept distinct from open changes, and how an archived change is addressed and labelled so completed work is never mistaken for pending work.
 ## Requirements
 ### Requirement: Archived changes are displayed only when requested
 
@@ -9,7 +9,7 @@ The reader SHALL NOT display archived changes unless the user asks for them, eit
 
 #### Scenario: Default invocation hides the archive
 
-- **WHEN** the user runs `opsx-read` with no target and without the option that includes archived changes
+- **WHEN** the user runs `opsx-tools read` with no target and without the option that includes archived changes
 - **THEN** no archived change appears in the reader
 
 #### Scenario: An empty open set does not reveal the archive
