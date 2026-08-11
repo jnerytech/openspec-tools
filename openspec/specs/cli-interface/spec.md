@@ -7,11 +7,11 @@ Defines the command-line invocation surface of `opsx-tools`: how the binary's ca
 
 The package SHALL install exactly one executable, named `opsx-tools`. Every
 capability the package provides SHALL be reached as a subcommand of that
-executable: reading as `read`, skill management as `skill`. The package SHALL
-NOT install any second executable, and SHALL NOT install a forwarding wrapper
-under a name it used previously. The root usage output SHALL list every
-subcommand, so the full set of capabilities is discoverable from the binary
-name alone.
+executable: reading as `read`, skill management as `skill`, project
+provisioning as `init`. The package SHALL NOT install any second executable,
+and SHALL NOT install a forwarding wrapper under a name it used previously. The
+root usage output SHALL list every subcommand, so the full set of capabilities
+is discoverable from the binary name alone.
 
 #### Scenario: A single executable is installed
 
@@ -29,10 +29,15 @@ name alone.
 - **WHEN** the user runs `opsx-tools skill` with no verb
 - **THEN** the interactive install-and-remove selection is presented, exactly as it would have been for the previous skills binary
 
+#### Scenario: Provisioning is reached through the init subcommand
+
+- **WHEN** the user runs `opsx-tools init`
+- **THEN** the project is provisioned according to the provisioning capability
+
 #### Scenario: Subcommands are discoverable from the root
 
 - **WHEN** the user runs `opsx-tools --help`
-- **THEN** the usage output lists both `read` and `skill` as available subcommands
+- **THEN** the usage output lists `read`, `skill`, and `init` as available subcommands
 
 ### Requirement: The bare invocation is informational
 
