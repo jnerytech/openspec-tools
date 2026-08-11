@@ -3,7 +3,21 @@ import { existsSync } from "fs";
 import { join, extname, basename, relative } from "path";
 import type { ArchivedIdentity, Change, MarkdownFile } from "./types.js";
 
-const ARTIFACT_ORDER = ["proposal", "specs", "design", "tasks", "review"];
+/**
+ * Reading order, not authoring order: orientation first, then why, the
+ * contract, how, the work, and review last as commentary on all of it. A delta
+ * spec lives at `specs/<capability>/spec.md`, so its artifact name is the
+ * singular `spec` - the plural never matched and sank every contract below the
+ * task list.
+ */
+const ARTIFACT_ORDER = [
+  "summary",
+  "proposal",
+  "spec",
+  "design",
+  "tasks",
+  "review",
+];
 
 export const ARCHIVE_DIR_NAME = "archive";
 
@@ -12,6 +26,17 @@ const DATE_PREFIX = /^(\d{4}-\d{2}-\d{2})-(.+)$/;
 function artifactSortKey(name: string): number {
   const idx = ARTIFACT_ORDER.indexOf(name.toLowerCase());
   return idx === -1 ? 99 : idx;
+}
+
+/**
+ * Shared by open and archived changes so the two orderings cannot drift apart.
+ * Artifacts of equal rank - several spec files, or several artifacts the order
+ * does not name - fall back to the slug, which encodes the path relative to the
+ * change and is therefore unique within it and independent of readdir order.
+ */
+function compareArtifacts(a: MarkdownFile, b: MarkdownFile): number {
+  const byRank = artifactSortKey(a.name) - artifactSortKey(b.name);
+  return byRank !== 0 ? byRank : a.slug.localeCompare(b.slug);
 }
 
 export async function scanChanges(changesDir: string): Promise<Change[]> {
@@ -31,9 +56,7 @@ export async function scanChanges(changesDir: string): Promise<Change[]> {
         name: entry.name,
         slug: slugify(entry.name),
         dirPath,
-        artifacts: artifacts.sort(
-          (a, b) => artifactSortKey(a.name) - artifactSortKey(b.name)
-        ),
+        artifacts: artifacts.sort(compareArtifacts),
       });
     }
   }
@@ -87,9 +110,7 @@ export async function scanArchivedChanges(
       // share a base name stay distinct.
       slug: slugify(entry.name),
       dirPath,
-      artifacts: artifacts.sort(
-        (a, b) => artifactSortKey(a.name) - artifactSortKey(b.name)
-      ),
+      artifacts: artifacts.sort(compareArtifacts),
       archived: parseArchivedDirName(entry.name),
     });
   }
