@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-import { createRequire } from "module";
 import { Command } from "commander";
 import { checkbox, confirm as confirmPrompt } from "@inquirer/prompts";
 import type {
@@ -15,13 +13,9 @@ import {
 import { destinations } from "./skill-destinations.js";
 import { listPackagedSkills } from "./skill-source.js";
 import { describeState } from "./skill-state.js";
+import { commandPath, usageError } from "./usage.js";
 import type { Confirm } from "./skill-actions.js";
 import type { Destination, DestinationId, PackagedSkill } from "./types.js";
-
-const requirePkg = createRequire(import.meta.url);
-const pkg = requirePkg("../package.json") as { version: string };
-
-const HELP_HINT = "Run 'opsx-skills --help' for usage.";
 
 interface CommonOptions {
   project?: boolean;
@@ -30,24 +24,17 @@ interface CommonOptions {
 }
 
 /**
- * Every usage error ends with the same pointer to --help, so no error path can
- * forget it. Never prints the full usage listing — the error stays first.
- */
-function usageError(message: string, details: string[] = []): never {
-  console.error(`[openspec-tools] ${message}`);
-  for (const line of details) console.error(line);
-  console.error(HELP_HINT);
-  process.exit(1);
-}
-
-/**
  * A question the session cannot answer is a failure, not a default: guessing a
  * destination would write somewhere the user never chose. The error names the
  * option that supplies the missing choice instead.
  */
-function requireInteractive(missing: string, options: string[]): void {
+function requireInteractive(
+  cmd: Command,
+  missing: string,
+  options: string[]
+): void {
   if (process.stdin.isTTY) return;
-  usageError(`${missing} must be supplied when input is not a terminal.`, [
+  usageError(cmd, `${missing} must be supplied when input is not a terminal.`, [
     ...options.map((opt) => `  ${opt}`),
     "",
   ]);
@@ -63,12 +50,16 @@ function packagedOrExit(): PackagedSkill[] {
 }
 
 /** An unknown name is answered with the names that do exist, never ignored. */
-function selectSkills(names: string[], packaged: PackagedSkill[]): PackagedSkill[] {
+function selectSkills(
+  cmd: Command,
+  names: string[],
+  packaged: PackagedSkill[]
+): PackagedSkill[] {
   const chosen: PackagedSkill[] = [];
   for (const name of names) {
     const match = packaged.find((skill) => skill.name === name);
     if (!match) {
-      usageError(`Unknown skill: ${name}`, [
+      usageError(cmd, `Unknown skill: ${name}`, [
         "",
         "This package ships:",
         ...packaged.map((skill) => `  ${skill.name}`),
@@ -100,14 +91,15 @@ const REMOVE: Action = {
 };
 
 async function resolveSkills(
+  cmd: Command,
   names: string[],
   packaged: PackagedSkill[],
   action: Action
 ): Promise<PackagedSkill[]> {
-  if (names.length > 0) return selectSkills(names, packaged);
+  if (names.length > 0) return selectSkills(cmd, names, packaged);
 
-  requireInteractive("A skill name", [
-    `opsx-skills ${action.verb} <skill>...   name the skills explicitly`,
+  requireInteractive(cmd, "A skill name", [
+    `${commandPath(cmd)} <skill>...   name the skills explicitly`,
   ]);
 
   return checkbox({
@@ -125,13 +117,14 @@ function selectedDestinations(options: CommonOptions): Destination[] {
 
 /** A destination supplied on the command line is never questioned. */
 async function resolveDestinations(
+  cmd: Command,
   options: CommonOptions,
   action: Action
 ): Promise<Destination[]> {
   const supplied = selectedDestinations(options);
   if (supplied.length > 0) return supplied;
 
-  requireInteractive("A destination", [
+  requireInteractive(cmd, "A destination", [
     "--project   the project's .claude/skills/",
     "--user      ~/.claude/skills/",
   ]);
@@ -145,10 +138,10 @@ async function resolveDestinations(
   });
 }
 
-function confirmer(options: CommonOptions): Confirm {
+function confirmer(cmd: Command, options: CommonOptions): Confirm {
   if (options.yes) return ALWAYS_YES;
   return async (message: string) => {
-    requireInteractive("A confirmation", [
+    requireInteractive(cmd, "A confirmation", [
       "--yes   answer every confirmation affirmatively",
     ]);
     return confirmPrompt({ message, default: false });
@@ -179,16 +172,20 @@ function listState(assignments: Assignment[]): void {
  * removes, and the resulting writes and deletions are named before anything
  * happens.
  */
-async function syncInteractively(options: CommonOptions): Promise<void> {
+async function syncInteractively(
+  cmd: Command,
+  options: CommonOptions
+): Promise<void> {
   const packaged = packagedOrExit();
   const assignments = assign(packaged, destinations());
 
   listState(assignments);
   console.log("");
 
-  requireInteractive("A selection", [
-    "opsx-skills install <skill> --project --user --yes",
-    "opsx-skills remove  <skill> --project --user --yes",
+  const self = commandPath(cmd);
+  requireInteractive(cmd, "A selection", [
+    `${self} install <skill> --project --user --yes`,
+    `${self} remove  <skill> --project --user --yes`,
   ]);
 
   const installed = assignments.filter(({ state }) => state.kind !== "absent");
@@ -224,7 +221,7 @@ async function syncInteractively(options: CommonOptions): Promise<void> {
   }
   console.log("");
 
-  const confirm = confirmer(options);
+  const confirm = confirmer(cmd, options);
   if (!(await confirm("Apply these changes?"))) {
     console.log("Nothing was written or deleted.");
     return;
@@ -235,97 +232,90 @@ async function syncInteractively(options: CommonOptions): Promise<void> {
   deleteAssignments(toDelete);
 }
 
-const program = new Command();
+/**
+ * The skill-management capability as a subcommand. Positional options are
+ * enabled here because the verbs beneath it carry the same option names it
+ * does: an option after a verb belongs to that verb.
+ */
+export function skillCommand(): Command {
+  const skill = new Command("skill")
+    .description("install and remove the skills this package ships")
+    .enablePositionalOptions();
 
-program
-  .name("opsx-skills")
-  .description("install and remove the skills this package ships")
-  .version(pkg.version, "-v, --version", "output the version number")
-  .showHelpAfterError(HELP_HINT)
-  .enablePositionalOptions();
-
-withCommonOptions(program).addHelpText(
-  "after",
-  `
+  withCommonOptions(skill).addHelpText(
+    "after",
+    `
 DESTINATIONS
-  --project   <project-root>/.claude/skills/, the same project root opsx-read
-              derives its port from — the nearest folder owning openspec/,
-              else the repository root
+  --project   <project-root>/.claude/skills/, the same project root
+              'opsx-tools read' derives its port from — the nearest folder
+              owning openspec/, else the repository root
   --user      ~/.claude/skills/
 
   Neither given: you are asked. A destination is never assumed.
 
 EXAMPLES
-  opsx-skills                                    # show and edit current state
-  opsx-skills list                               # state at both destinations
-  opsx-skills install openspec-review-change --user
-  opsx-skills install --project                  # pick the skills interactively
-  opsx-skills remove openspec-review-change --project --yes
+  opsx-tools skill                               # show and edit current state
+  opsx-tools skill list                          # state at both destinations
+  opsx-tools skill install openspec-review-change --user
+  opsx-tools skill install --project             # pick the skills interactively
+  opsx-tools skill remove openspec-review-change --project --yes
 
 NOTE
   Only the skills this package ships can be installed or removed. A skill
   directory at a destination that this package does not ship is never listed,
   offered, or deleted.
 `
-);
+  );
 
-withCommonOptions(
-  program
-    .command("install")
-    .description("copy skills into a destination")
-    .argument("[skills...]", "skill names (default: asked interactively)")
-).action(async (names: string[], options: CommonOptions) => {
-  const packaged = packagedOrExit();
-  const skills = await resolveSkills(names, packaged, INSTALL);
-  const dests = await resolveDestinations(options, INSTALL);
-  if (skills.length === 0 || dests.length === 0) {
-    console.log("Nothing selected. Nothing was written.");
-    return;
-  }
-  await installAssignments(assign(skills, dests), confirmer(options));
-});
+  withCommonOptions(
+    skill
+      .command("install")
+      .description("copy skills into a destination")
+      .argument("[skills...]", "skill names (default: asked interactively)")
+  ).action(async (names: string[], options: CommonOptions, cmd: Command) => {
+    const packaged = packagedOrExit();
+    const skills = await resolveSkills(cmd, names, packaged, INSTALL);
+    const dests = await resolveDestinations(cmd, options, INSTALL);
+    if (skills.length === 0 || dests.length === 0) {
+      console.log("Nothing selected. Nothing was written.");
+      return;
+    }
+    await installAssignments(assign(skills, dests), confirmer(cmd, options));
+  });
 
-withCommonOptions(
-  program
-    .command("remove")
-    .description("delete installed copies of skills")
-    .argument("[skills...]", "skill names (default: asked interactively)")
-).action(async (names: string[], options: CommonOptions) => {
-  const packaged = packagedOrExit();
-  const skills = await resolveSkills(names, packaged, REMOVE);
-  const dests = await resolveDestinations(options, REMOVE);
-  if (skills.length === 0 || dests.length === 0) {
-    console.log("Nothing selected. Nothing was deleted.");
-    return;
-  }
-  await removeAssignments(assign(skills, dests), confirmer(options));
-});
+  withCommonOptions(
+    skill
+      .command("remove")
+      .description("delete installed copies of skills")
+      .argument("[skills...]", "skill names (default: asked interactively)")
+  ).action(async (names: string[], options: CommonOptions, cmd: Command) => {
+    const packaged = packagedOrExit();
+    const skills = await resolveSkills(cmd, names, packaged, REMOVE);
+    const dests = await resolveDestinations(cmd, options, REMOVE);
+    if (skills.length === 0 || dests.length === 0) {
+      console.log("Nothing selected. Nothing was deleted.");
+      return;
+    }
+    await removeAssignments(assign(skills, dests), confirmer(cmd, options));
+  });
 
-withCommonOptions(
-  program
-    .command("list")
-    .description("report each skill's state at each destination")
-    .argument("[skills...]", "skill names (default: all packaged skills)")
-).action(async (names: string[], options: CommonOptions) => {
-  const packaged = packagedOrExit();
-  const skills = names.length > 0 ? selectSkills(names, packaged) : packaged;
-  // Reading reports both places unless one is asked for; nothing is written,
-  // so there is no choice here to withhold.
-  const chosen = selectedDestinations(options);
-  listState(assign(skills, chosen.length > 0 ? chosen : destinations()));
-});
+  withCommonOptions(
+    skill
+      .command("list")
+      .description("report each skill's state at each destination")
+      .argument("[skills...]", "skill names (default: all packaged skills)")
+  ).action(async (names: string[], options: CommonOptions, cmd: Command) => {
+    const packaged = packagedOrExit();
+    const skills = names.length > 0 ? selectSkills(cmd, names, packaged) : packaged;
+    // Reading reports both places unless one is asked for; nothing is written,
+    // so there is no choice here to withhold.
+    const chosen = selectedDestinations(options);
+    listState(assign(skills, chosen.length > 0 ? chosen : destinations()));
+  });
 
-program.action(async (options: CommonOptions) => {
-  await syncInteractively(options);
-});
+  skill.action(async (options: CommonOptions, cmd: Command) => {
+    await syncInteractively(cmd, options);
+  });
 
-try {
-  await program.parseAsync(process.argv);
-} catch (err) {
-  // A prompt closed with Ctrl-C is a cancelled invocation, not a crash.
-  if ((err as Error)?.name === "ExitPromptError") {
-    console.error("[openspec-tools] Cancelled. Nothing was written or deleted.");
-    process.exit(1);
-  }
-  throw err;
+  return skill;
 }

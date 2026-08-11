@@ -1,12 +1,11 @@
-#!/usr/bin/env node
 import { existsSync, statSync } from "fs";
 import { resolve, relative, basename, sep } from "path";
-import { createRequire } from "module";
 import { Command, InvalidArgumentError } from "commander";
 import type { TargetMode, ServerOptions } from "./types.js";
 import { startServer } from "./server.js";
 import { resolveProject } from "./project.js";
 import { PORT_RANGE_START, PORT_RANGE_END } from "./port.js";
+import { commandPath, helpHint, usageError } from "./usage.js";
 import {
   scanChanges,
   scanArchivedChanges,
@@ -14,22 +13,7 @@ import {
   ARCHIVE_DIR_NAME,
 } from "./scanner.js";
 
-const requirePkg = createRequire(import.meta.url);
-const pkg = requirePkg("../package.json") as { version: string };
-
 const DEFAULT_CHANGES_DIR = "openspec/changes";
-const HELP_HINT = "Run 'opsx-read --help' for usage.";
-
-/**
- * Every usage error ends with the same pointer to --help, so no error path
- * can forget it. Never prints the full usage listing — the error stays first.
- */
-function usageError(message: string, details: string[] = []): never {
-  console.error(`[openspec-tools] ${message}`);
-  for (const line of details) console.error(line);
-  console.error(HELP_HINT);
-  process.exit(1);
-}
 
 function parsePort(value: string): number {
   const port = parseInt(value, 10);
@@ -96,6 +80,7 @@ async function archivedChangeNames(changesDir: string): Promise<Suggestion[]> {
 
 /** Lists every location tried, then helps the user find the right name. */
 async function reportTargetNotFound(
+  cmd: Command,
   target: string,
   attempted: string[],
   changesDir: string
@@ -118,18 +103,18 @@ async function reportTargetNotFound(
   }
 
   details.push("");
-  return usageError(`Target '${target}' not found. Tried:`, details);
+  return usageError(cmd, `Target '${target}' not found. Tried:`, details);
 }
 
 /** No target: always serves, but explains what it found first. */
-async function resolveDefaultMode(): Promise<TargetMode> {
+async function resolveDefaultMode(cmd: Command): Promise<TargetMode> {
   const changesDir = resolve(process.cwd(), DEFAULT_CHANGES_DIR);
 
   if (!existsSync(changesDir)) {
     console.warn(
       `[openspec-tools] ${DEFAULT_CHANGES_DIR}/ not found in ${process.cwd()}.\n` +
         `  Are you in your project root? Serving an empty list anyway.\n` +
-        `  ${HELP_HINT}\n`
+        `  ${helpHint(cmd)}\n`
     );
     return { kind: "changes", changesDir };
   }
@@ -144,9 +129,9 @@ async function resolveDefaultMode(): Promise<TargetMode> {
         (archiveOnly ? " (only archive/ was found)." : ".") +
         `\n  Serving anyway — create a change and reload.` +
         (archiveOnly
-          ? `\n  Run 'opsx-read --archived' to read the archived changes.`
+          ? `\n  Run '${commandPath(cmd)} --archived' to read the archived changes.`
           : "") +
-        `\n  ${HELP_HINT}\n`
+        `\n  ${helpHint(cmd)}\n`
     );
   }
 
@@ -173,6 +158,7 @@ function archivedChangeMode(dirPath: string): TargetMode {
  * likely intent, then point at the other option.
  */
 async function warnArchivedTwin(
+  cmd: Command,
   target: string,
   changesBase: string
 ): Promise<void> {
@@ -185,12 +171,15 @@ async function warnArchivedTwin(
   console.warn(
     `[openspec-tools] Serving the open change '${target}'.\n` +
       `  An archived change of the same name also exists: ${twin.name}\n` +
-      `  Read it with: opsx-read ${twin.name}\n`
+      `  Read it with: ${commandPath(cmd)} ${twin.name}\n`
   );
 }
 
-async function resolveMode(target: string | undefined): Promise<TargetMode> {
-  if (!target) return resolveDefaultMode();
+async function resolveMode(
+  cmd: Command,
+  target: string | undefined
+): Promise<TargetMode> {
+  if (!target) return resolveDefaultMode(cmd);
 
   const abs = resolve(process.cwd(), target);
   const changesBase = resolve(process.cwd(), DEFAULT_CHANGES_DIR);
@@ -207,7 +196,7 @@ async function resolveMode(target: string | undefined): Promise<TargetMode> {
 
     // An open change name wins, out loud.
     if (isDirectory(asChange)) {
-      await warnArchivedTwin(target, changesBase);
+      await warnArchivedTwin(cmd, target, changesBase);
       return { kind: "change", changeName: target, dirPath: asChange };
     }
 
@@ -226,14 +215,19 @@ async function resolveMode(target: string | undefined): Promise<TargetMode> {
       };
     }
 
-    return reportTargetNotFound(target, [abs, asChange, asArchived], changesBase);
+    return reportTargetNotFound(
+      cmd,
+      target,
+      [abs, asChange, asArchived],
+      changesBase
+    );
   }
 
   const stat = statSync(abs);
 
   if (stat.isFile()) {
     if (!abs.endsWith(".md")) {
-      usageError(`Not a Markdown file: ${displayPath(abs)}`, [
+      usageError(cmd, `Not a Markdown file: ${displayPath(abs)}`, [
         "  Only .md files can be served directly.",
         "",
       ]);
@@ -269,27 +263,30 @@ async function resolveMode(target: string | undefined): Promise<TargetMode> {
     return { kind: "dir", dirPath: abs };
   }
 
-  return usageError(`Unsupported target type: ${displayPath(abs)}`, [""]);
+  return usageError(cmd, `Unsupported target type: ${displayPath(abs)}`, [""]);
 }
 
-const program = new Command();
-
-program
-  .name("opsx-read")
-  .description("serve OpenSpec changes as read-aloud-friendly web pages")
-  .argument("[target]", "change name, folder, or .md file (default: openspec/changes/)")
-  .option(
-    "-p, --port <n>",
-    "listen on this exact port, overriding the automatic choice",
-    parsePort
-  )
-  .option("-o, --open", "open browser automatically", false)
-  .option("-a, --archived", "include archived changes", false)
-  .version(pkg.version, "-v, --version", "output the version number")
-  .showHelpAfterError(HELP_HINT)
-  .addHelpText(
-    "after",
-    `
+/**
+ * The reading capability as a subcommand. Under an explicit verb every
+ * positional word is a target, so no name has to be reserved and intercepted.
+ */
+export function readCommand(): Command {
+  return new Command("read")
+    .description("serve OpenSpec changes as read-aloud-friendly web pages")
+    .argument(
+      "[target]",
+      `change name, folder, or .md file (default: ${DEFAULT_CHANGES_DIR}/)`
+    )
+    .option(
+      "-p, --port <n>",
+      "listen on this exact port, overriding the automatic choice",
+      parsePort
+    )
+    .option("-o, --open", "open browser automatically", false)
+    .option("-a, --archived", "include archived changes", false)
+    .addHelpText(
+      "after",
+      `
 TARGET
   (none)              List all open changes in ${DEFAULT_CHANGES_DIR}/
   <change-name>       Serve a specific change (name or path)
@@ -298,16 +295,18 @@ TARGET
                       List the archived changes
   <folder>            Serve all .md files in a folder
   <file.md>           Serve a single Markdown file
-  help                Show this help
+
+  Every word here is a target. No name is reserved: a change named 'help'
+  or 'skill' is served by name, like any other.
 
 EXAMPLES
-  opsx-read                          # list open changes
-  opsx-read --archived               # list open and archived changes
-  opsx-read add-dark-mode            # read a change
-  opsx-read 2026-08-10-add-dark-mode # read an archived change
-  opsx-read ./docs                   # serve a docs folder
-  opsx-read CONTRIBUTING.md -o       # open a file in browser
-  opsx-read -p 8080                  # pin the port instead
+  opsx-tools read                          # list open changes
+  opsx-tools read --archived               # list open and archived changes
+  opsx-tools read add-dark-mode            # read a change
+  opsx-tools read 2026-08-10-add-dark-mode # read an archived change
+  opsx-tools read ./docs                   # serve a docs folder
+  opsx-tools read CONTRIBUTING.md -o       # open a file in browser
+  opsx-tools read -p 8080                  # pin the port instead
 
 PORT
   Chosen automatically when --port is omitted: each project gets its own
@@ -315,31 +314,21 @@ PORT
   the same URL across restarts and several readers can run side by side.
   If that port is taken, the next free one is used and the swap is announced.
   --port is never substituted: a busy port is reported as an error instead.
-
-NOTE
-  'help' is read as a command, not a target. A change actually named
-  'help' must be addressed by path: opsx-read ${DEFAULT_CHANGES_DIR}/help
 `
-  )
-  .action(async (
-    target: string | undefined,
-    options: { port?: number; open: boolean; archived: boolean }
-  ) => {
-    // 'help' is intercepted here rather than registered as a subcommand, which
-    // would add a "Commands:" section to a CLI that has exactly one job.
-    if (target === "help") {
-      program.help();
-    }
-
-    const mode = await resolveMode(target);
-    const opts: ServerOptions = {
-      requestedPort: options.port,
-      project: resolveProject(),
-      mode,
-      openBrowser: options.open,
-      archived: options.archived,
-    };
-    await startServer(opts);
-  });
-
-await program.parseAsync(process.argv);
+    )
+    .action(async (
+      target: string | undefined,
+      options: { port?: number; open: boolean; archived: boolean },
+      command: Command
+    ) => {
+      const mode = await resolveMode(command, target);
+      const opts: ServerOptions = {
+        requestedPort: options.port,
+        project: resolveProject(),
+        mode,
+        openBrowser: options.open,
+        archived: options.archived,
+      };
+      await startServer(opts);
+    });
+}

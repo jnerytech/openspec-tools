@@ -253,7 +253,7 @@ async function bindDerived(server: Server, preferred: number): Promise<number> {
 
   return fail(
     `No free port between ${PORT_RANGE_START} and ${PORT_RANGE_END} — every port in the range is in use.`,
-    [`  Supply one explicitly: opsx-read --port <n>`]
+    [`  Supply one explicitly: opsx-tools read --port <n>`]
   );
 }
 

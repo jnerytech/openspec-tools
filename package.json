@@ -4,13 +4,12 @@
   "description": "OpenSpec extension: web reader for changes + review skill pack",
   "type": "module",
   "bin": {
-    "opsx-read": "./dist/cli.js",
-    "opsx-skills": "./dist/skills-cli.js"
+    "opsx-tools": "./dist/main.js"
   },
   "scripts": {
     "compile": "tsc",
-    "dev": "tsx src/cli.ts",
-    "start": "node dist/cli.js"
+    "dev": "tsx src/main.ts",
+    "start": "node dist/main.js"
   },
   "keywords": ["openspec", "sdd", "spec-driven", "ai", "reader"],
   "license": "MIT",

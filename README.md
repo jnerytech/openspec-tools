@@ -1,9 +1,10 @@
 # openspec-tools
 
-An **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** extension package with two components:
+An **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** extension package. It
+installs one command, **`opsx-tools`**, with a subcommand per component:
 
-1. **`opsx-read`** — a lightweight CLI + web server that renders OpenSpec changes as clean, read-aloud-friendly HTML pages (great with browser Read Aloud, Edge Immersive Reader, etc.)
-2. **A pack of two skills**, installed and removed with the **`opsx-skills`** command that ships alongside them:
+1. **`opsx-tools read`** — a lightweight CLI + web server that renders OpenSpec changes as clean, read-aloud-friendly HTML pages (great with browser Read Aloud, Edge Immersive Reader, etc.)
+2. **`opsx-tools skill`** — installs and removes the **pack of two skills** that ships alongside it:
    - **`openspec-review-change`** — reviews a change for internal consistency, alignment with existing specs, code conformance, and independent verification of the factual claims the change makes
    - **`openspec-summarize-change`** — writes a short orientation summary of a change to `summary.md`, in English or pt-BR
 
@@ -18,23 +19,26 @@ npm install -g github:jnerytech/openspec-tools
 # Go to your project root (where openspec/ lives)
 cd your-project
 
+# See what the tool can do
+opsx-tools
+
 # List all open changes
-opsx-read
+opsx-tools read
 
 # Read a specific change
-opsx-read add-dark-mode
+opsx-tools read add-dark-mode
 
 # List open changes plus the archived ones
-opsx-read --archived
+opsx-tools read --archived
 
 # Serve any folder of Markdown files
-opsx-read ./docs
+opsx-tools read ./docs
 
 # Serve a single file, open browser automatically
-opsx-read CONTRIBUTING.md --open
+opsx-tools read CONTRIBUTING.md --open
 
 # Install the skills into this project
-opsx-skills install openspec-review-change openspec-summarize-change --project
+opsx-tools skill install openspec-review-change openspec-summarize-change --project
 ```
 
 The command prints the URL it bound, along with the project and what it is
@@ -89,10 +93,12 @@ port in the range is used and the substitution is announced. `--port` overrides
 the choice and is never substituted: if that exact port is taken, the command
 says so and stops.
 
-> **Note:** `opsx-read` no longer listens on `4242` by default. Pass
+> **Note:** the reader no longer listens on `4242` by default. Pass
 > `--port 4242` if something depends on that address.
 
 ### Options
+
+These belong to `read`, so they go after the verb: `opsx-tools read --archived`.
 
 | Flag | Default | Description |
 |---|---|---|
@@ -102,19 +108,28 @@ says so and stops.
 | `-h, --help` | — | Show help |
 | `-v, --version` | — | Print the version and exit |
 
-`opsx-read help` works too, as a bare word.
+`-h` and `-v` work at every level: `opsx-tools --help` lists the subcommands,
+`opsx-tools read --help` describes `read`. `opsx-tools help` works as a bare
+word too.
 
-Mistyped flags are rejected rather than ignored, and every error tells you
-where to go next:
+Mistyped flags and commands are rejected rather than ignored, and every error
+points at the help of the command you were actually running:
 
 ```
-$ opsx-read --prot 8080
+$ opsx-tools read --prot 8080
 error: unknown option '--prot'
 (Did you mean --port?)
-Run 'opsx-read --help' for usage.
+Run 'opsx-tools read --help' for usage.
+
+$ opsx-tools raed
+error: unknown command 'raed'
+(Did you mean read?)
+Run 'opsx-tools --help' for usage.
 ```
 
 ### Target resolution
+
+What you type after `opsx-tools read`:
 
 | What you type | What gets served |
 |---|---|
@@ -132,8 +147,10 @@ archived so they aren't mistaken for open work.
 When a name matches both an open and an archived change, the open one is
 served and the archived twin is named on stderr.
 
-> `help` is read as a command, not a target. A change actually named `help`
-> must be addressed by path: `opsx-read openspec/changes/help`.
+Every word after `read` is a target. No name is reserved: a change named `help`,
+`skill`, or `list` is served by its bare name like any other. (This is the
+payoff of spelling the verb out — before the verb existed, `help` had to be
+intercepted as a command and such a change was reachable only by path.)
 
 ### Archived changes
 
@@ -149,31 +166,30 @@ to the archive when the open set is empty.
 - An archived change page is labelled as archived, with its date, so an old
   task list isn't read as pending work.
 
-> **Breaking in this release:** `opsx-read openspec/changes/archive` used to
-> serve one page merging every archived change's artifacts. It now serves the
+> **Breaking in an earlier release:** `openspec/changes/archive` as a target used
+> to serve one page merging every archived change's artifacts. It now serves the
 > archive as a list of archived changes, each addressable on its own.
 
 ---
 
 ## Install the skills
 
-The package ships a second command, **`opsx-skills`**, that installs and removes
-the skills this package ships. It reads them from its own installed package, so
-it works the same from a global install as from a clone — you never have to be
-standing in a checkout.
+The **`skill`** subcommand installs and removes the skills this package ships.
+It reads them from its own installed package, so it works the same from a global
+install as from a clone — you never have to be standing in a checkout.
 
 ```bash
 # Show the current state and edit it: check to install, clear to remove
-opsx-skills
+opsx-tools skill
 
 # Install into this project — <project-root>/.claude/skills/
-opsx-skills install openspec-review-change --project
+opsx-tools skill install openspec-review-change --project
 
 # Install both, for every project you work on — ~/.claude/skills/
-opsx-skills install openspec-review-change openspec-summarize-change --user
+opsx-tools skill install openspec-review-change openspec-summarize-change --user
 
 # Remove one again
-opsx-skills remove openspec-review-change --project
+opsx-tools skill remove openspec-review-change --project
 ```
 
 After installing, run `openspec update` in your project to refresh the AI
@@ -187,9 +203,9 @@ instructions.
 | `--user` | `~/.claude/skills/` |
 
 Both can be given in one invocation, and each result is reported on its own
-line. The project root is the same one `opsx-read` derives its port from — the
-nearest folder owning `openspec/`, else the repository root — so "project"
-means one thing across both commands, whichever subdirectory you ran from.
+line. The project root is the same one `opsx-tools read` derives its port from —
+the nearest folder owning `openspec/`, else the repository root — so "project"
+means one thing across both subcommands, whichever subdirectory you ran from.
 
 Neither flag given? You are asked. A destination is never assumed. If the
 skills directory doesn't exist yet it is created, and the command says so —
@@ -200,10 +216,10 @@ up after the tool restarts.
 
 | Command | What it does |
 |---|---|
-| `opsx-skills` | Lists every skill at both destinations with its current state, as a checklist you edit. Checking installs, clearing removes; the writes and deletions are named and confirmed before anything happens. |
-| `opsx-skills list [skills...]` | Reports each skill's state at each destination, changing nothing |
-| `opsx-skills install [skills...]` | Copies skills into the chosen destinations |
-| `opsx-skills remove [skills...]` | Deletes installed copies, after naming every path it will delete |
+| `opsx-tools skill` | Lists every skill at both destinations with its current state, as a checklist you edit. Checking installs, clearing removes; the writes and deletions are named and confirmed before anything happens. |
+| `opsx-tools skill list [skills...]` | Reports each skill's state at each destination, changing nothing |
+| `opsx-tools skill install [skills...]` | Copies skills into the chosen destinations |
+| `opsx-tools skill remove [skills...]` | Deletes installed copies, after naming every path it will delete |
 | `-y, --yes` | Answers every confirmation affirmatively, for scripts. Changes only whether you are asked — never what is written or deleted. |
 
 Omit the skill names and you are asked which ones; name them and you aren't.
@@ -217,21 +233,21 @@ differing copy always names the absolute path and asks first.
 Only the skills this package ships can be installed or removed. A skill
 directory sitting at a destination that this package does not ship is never
 listed, offered, or deleted — this repository's own `.claude/skills/` holds
-several OpenSpec skills sharing the `openspec-` prefix, and `opsx-skills`
+several OpenSpec skills sharing the `openspec-` prefix, and `opsx-tools skill`
 cannot touch them.
 
 When a question can't be asked — piped input, CI — the command says which flag
 would have supplied the answer and exits 1, rather than guessing a destination:
 
 ```
-$ opsx-skills install openspec-review-change < /dev/null
+$ opsx-tools skill install openspec-review-change < /dev/null
 [openspec-tools] A destination must be supplied when input is not a terminal.
   --project   the project's .claude/skills/
   --user      ~/.claude/skills/
-Run 'opsx-skills --help' for usage.
+Run 'opsx-tools skill install --help' for usage.
 ```
 
-**Other tools:** `opsx-skills` writes to the Claude Code paths. For anything
+**Other tools:** `opsx-tools skill` writes to the Claude Code paths. For anything
 else, see the [OpenSpec supported tools docs](https://github.com/Fission-AI/OpenSpec/blob/main/docs/supported-tools.md)
 for the right directory and copy the skill directory there.
 
@@ -293,7 +309,12 @@ npm install -g git+https://github.com/jnerytech/openspec-tools.git
 ```
 
 The compiled `dist/` is committed, so the install needs no build step —
-`opsx-read` and `opsx-skills` land on your `PATH` right away.
+`opsx-tools` lands on your `PATH` right away.
+
+> **Breaking in this release:** the package used to install two commands,
+> `opsx-read` and `opsx-skills`. Both are gone, with no forwarding wrappers:
+> they are now `opsx-tools read` and `opsx-tools skill`. Reinstalling replaces
+> the old names.
 
 Requires **Node 20 or newer**.
 
@@ -310,7 +331,7 @@ npm install
 npm run compile
 
 # Run without installing globally
-node dist/cli.js
+node dist/main.js read
 ```
 
 > The compile script is deliberately **not** named `build`. npm 11 gives
@@ -326,20 +347,23 @@ node dist/cli.js
 ```
 openspec-tools/
 ├── src/
-│   ├── cli.ts                 # opsx-read entry point, argument parsing
+│   ├── main.ts                # opsx-tools entry point: the only bin, composes
+│   │                          #   the subcommands and owns --version
+│   ├── usage.ts               # Command paths and the help hint every error ends with
+│   ├── cli.ts                 # The 'read' subcommand, argument parsing
 │   ├── server.ts              # HTTP server, port binding, routing
 │   ├── project.ts             # Resolves the project root and its name
 │   ├── port.ts                # Derives a project's port from its root
 │   ├── scanner.ts             # Reads openspec/ directory structure
 │   ├── renderer.ts            # Markdown → read-aloud HTML
-│   ├── skills-cli.ts          # opsx-skills entry point, prompts
+│   ├── skills-cli.ts          # The 'skill' subcommand, prompts
 │   ├── skill-source.ts        # Finds the packaged skills, from the module
 │   ├── skill-destinations.ts  # The project and user skills directories
 │   ├── skill-state.ts         # Installed vs packaged, by comparison
 │   ├── skill-actions.ts       # Copying and deleting, with confirmation
 │   └── types.ts               # Shared types
 ├── skills/                        # The installable set: any directory here
-│   │                              # holding a SKILL.md is offered by opsx-skills
+│   │                              # holding a SKILL.md is offered by 'skill'
 │   ├── openspec-review-change/
 │   │   ├── SKILL.md    # The review skill
 │   │   └── references/ # Loaded on demand during a review

@@ -197,7 +197,7 @@ async function bindDerived(server, preferred) {
             }
         }
     }
-    return fail(`No free port between ${PORT_RANGE_START} and ${PORT_RANGE_END} — every port in the range is in use.`, [`  Supply one explicitly: opsx-read --port <n>`]);
+    return fail(`No free port between ${PORT_RANGE_START} and ${PORT_RANGE_END} — every port in the range is in use.`, [`  Supply one explicitly: opsx-tools read --port <n>`]);
 }
 async function bindRequested(server, port) {
     try {
