@@ -111,6 +111,34 @@ function openBrowserAt(url) {
 }
 /** Automatic selection must not widen what the server is reachable from. */
 const LOOPBACK = "127.0.0.1";
+/**
+ * `sshd` sets SSH_CONNECTION to "<client-ip> <client-port> <server-ip>
+ * <server-port>". The third field is the address the client already reached
+ * this machine on, which beats enumerating interfaces: on a host with several,
+ * there is no way to tell from the outside which one the user came in by.
+ */
+function remoteServerAddress() {
+    const fields = (process.env.SSH_CONNECTION ?? "").trim().split(/\s+/);
+    return fields[2] || undefined;
+}
+/**
+ * Deliberately broader than `remoteServerAddress`: a session can be remote
+ * while the address is unavailable, and a hint with a placeholder host still
+ * carries the part the user cannot guess.
+ */
+function isRemoteSession() {
+    return Boolean(process.env.SSH_CONNECTION || process.env.SSH_TTY || process.env.SSH_CLIENT);
+}
+/**
+ * The non-obvious part is the `-L` mapping, not the user's own name or host,
+ * so an unresolved piece degrades to a placeholder rather than suppressing the
+ * whole line.
+ */
+function forwardingCommand(port) {
+    const user = process.env.USER || process.env.LOGNAME || "<user>";
+    const host = remoteServerAddress() ?? "<host>";
+    return `ssh -L ${port}:localhost:${port} ${user}@${host}`;
+}
 function fail(message, details = []) {
     console.error(`[openspec-tools] ${message}`);
     for (const line of details)
@@ -227,8 +255,17 @@ export async function startServer(opts) {
         console.warn(`[openspec-tools] Port ${derived} is in use — listening on ${bound} instead.`);
     }
     const url = `http://localhost:${bound}`;
+    // Over a remote shell the URL above names this machine, while the browser
+    // reading it resolves `localhost` to the user's own. Forwarding makes the URL
+    // true from there — which is why the binding does not have to widen. The port
+    // is the one bound, so a substitution above stays reflected here.
+    const remoteHint = isRemoteSession()
+        ? `\n  remote session — forward the port from the machine you are at:\n` +
+            `    ${forwardingCommand(bound)}\n`
+        : "";
     console.log(`\n  openspec-tools  →  ${url}\n` +
-        `  project: ${project.name}  ·  reading: ${describeTarget(mode, project)}\n`);
+        `  project: ${project.name}  ·  reading: ${describeTarget(mode, project)}\n` +
+        remoteHint);
     if (openBrowser)
         openBrowserAt(url);
     process.on("SIGINT", () => {

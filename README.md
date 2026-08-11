@@ -47,6 +47,32 @@ reading:
 
 Open that URL in your browser and use **Read Aloud** (Edge, Chrome, Safari, etc.) to listen to the spec while you code.
 
+### Reading from a remote machine
+
+The reader listens on the loopback interface only, so the URL it prints is
+reachable from that machine and no other. Over SSH, `localhost` in your browser
+means your own laptop — so the reader also prints the command that forwards the
+port to you:
+
+```
+  openspec-tools  →  http://localhost:4849
+  project: openspec-tools  ·  reading: openspec/changes/
+
+  remote session — forward the port from the machine you are at:
+    ssh -L 4849:localhost:4849 dev@10.0.0.7
+```
+
+Run that from your own machine, then open the printed URL there. Because the
+port is derived from the project, the same command keeps working across
+restarts.
+
+If you connect through an editor's remote support (VS Code Remote-SSH and
+similar), the port is usually forwarded for you and the URL already works — the
+hint is redundant there, not wrong.
+
+Forwarding is the whole story: the binding never widens, and there is no option
+to expose the reader on an external interface.
+
 ### Ports
 
 Each project gets its own port, derived from the project root — the nearest
