@@ -49,7 +49,7 @@ function report(message: string): void {
 }
 
 /** Replaces rather than merges: a file dropped from the packaged skill goes. */
-function copyOver(skill: PackagedSkill, target: string): void {
+export function copyOver(skill: PackagedSkill, target: string): void {
   rmSync(target, { recursive: true, force: true });
   cpSync(skill.path, target, { recursive: true });
 }

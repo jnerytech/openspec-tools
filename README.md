@@ -3,8 +3,9 @@
 An **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** extension package. It
 installs one command, **`opsx-tools`**, with a subcommand per component:
 
-1. **`opsx-tools read`** — a lightweight CLI + web server that renders OpenSpec changes as clean, read-aloud-friendly HTML pages (great with browser Read Aloud, Edge Immersive Reader, etc.)
-2. **`opsx-tools skill`** — installs and removes the **pack of two skills** that ships alongside it:
+1. **`opsx-tools init`** — sets a repository up with everything the package offers, as one checklist you edit
+2. **`opsx-tools read`** — a lightweight CLI + web server that renders OpenSpec changes as clean, read-aloud-friendly HTML pages (great with browser Read Aloud, Edge Immersive Reader, etc.)
+3. **`opsx-tools skill`** — installs and removes the **pack of two skills** that ships alongside it:
    - **`openspec-review-change`** — reviews a change for internal consistency, alignment with existing specs, code conformance, and independent verification of the factual claims the change makes
    - **`openspec-summarize-change`** — writes a short orientation summary of a change to `summary.md`, in English or pt-BR
 
@@ -18,6 +19,9 @@ npm install -g github:jnerytech/openspec-tools
 
 # Go to your project root (where openspec/ lives)
 cd your-project
+
+# Set this repo up — skills, artifact language, working agreements
+opsx-tools init
 
 # See what the tool can do
 opsx-tools
@@ -37,7 +41,7 @@ opsx-tools read ./docs
 # Serve a single file, open browser automatically
 opsx-tools read CONTRIBUTING.md --open
 
-# Install the skills into this project
+# Install just the skills, one by one, into this project
 opsx-tools skill install openspec-review-change openspec-summarize-change --project
 ```
 
@@ -172,11 +176,136 @@ to the archive when the open set is empty.
 
 ---
 
+## Set up a project
+
+The **`init`** subcommand provisions a repository with everything this package
+offers, in one place. Run it with no flags and every component is shown with
+what is there right now, as a selection you edit — checking provisions,
+clearing removes:
+
+```bash
+opsx-tools init
+```
+
+```
+Project: your-project  /home/you/your-project
+
+  Skills                           2 installed
+  Artifact language                not set
+  Claude Code working agreements   not set
+
+? Check to provision, clear to remove
+❯ ◉ Skills  — 2 installed
+  ◯ Artifact language  — not set
+  ◯ Claude Code working agreements  — not set
+```
+
+Everything that would be written or deleted is named before anything happens,
+and a change inside a file you own is shown as a diff — the path alone would
+not say what becomes of the rest of that file.
+
+### It requires an OpenSpec project, and never creates one
+
+If no `openspec/` directory owns the resolved root, `init` says so, points at
+`openspec init`, and exits 1 without writing. Everything it provisions is inert
+without OpenSpec, so a repository that has none is not a smaller target — it is
+the wrong one. Creating `openspec/` for you would also mean choosing your schema
+and your tool set, which is the conversation `openspec init` exists to have.
+
+### The components
+
+| Component | What it does | Where it writes |
+|---|---|---|
+| **Skills** | Installs the skills this package ships, all of them as one item | `<project>/.claude/skills/`, and `~/.claude/skills/` if you ask |
+| **Artifact language** | Fixes the language OpenSpec artifacts are written in | the `context` field of `openspec/config.yaml` |
+| **Claude Code working agreements** | Asks the agent to keep a task list, and to ask rather than assume, while working under `openspec/` | `CLAUDE.md` |
+
+The destinations differ on purpose, and the axis is **who reads the file**, not
+what the directive is about:
+
+- The **artifact language** is about the content of an artifact, and every AI
+  tool OpenSpec supports should honour it. `openspec/config.yaml` is that shared
+  file, and OpenSpec injects its `context` field into every artifact
+  instruction — so the directive arrives exactly when an artifact is written,
+  and costs nothing the rest of the time.
+- The **working agreements** name Claude Code's own tools, which no other client
+  has. Putting them in a file every tool reads would hand thirty clients an
+  instruction about a tool one of them has. `CLAUDE.md` is the honest home.
+  `AGENTS.md` is the cross-tool convention, so it is the wrong home for the same
+  reason.
+
+> The working agreements are **instructions written into the agent's context.**
+> They are not enforced, and nothing here can compel a tool call — a hook can
+> intercept one, not inject one that never happened. What this package
+> guarantees is that the directive is present, correct, scoped, and removable.
+
+### Flags
+
+Given no flags, `init` is the checklist above and reconciles fully: a component
+you clear is removed.
+
+Given flags, **only the components you name are touched.** A component you do
+not mention is left exactly as it is. That asymmetry is deliberate — otherwise a
+script written today would start silently deleting a component added in a later
+release.
+
+```bash
+opsx-tools init --skills --project --yes    # install the skills here
+opsx-tools init --lang pt-BR --yes          # set the artifact language
+opsx-tools init --todos --questions --yes   # write both working agreements
+opsx-tools init --no-lang --yes             # remove just that one
+```
+
+| Flag | Effect |
+|---|---|
+| `--skills` / `--no-skills` | provision or remove the packaged skills |
+| `--project`, `--user` | where the skills go |
+| `--lang <language>` / `--no-lang` | set or remove the artifact language; any language you name is accepted |
+| `--todos`, `--questions` | write those working agreements (naming one selects the component) |
+| `--no-claude-workflow` | remove the working agreements |
+| `-y, --yes` | answer every confirmation affirmatively |
+
+When a question can't be asked — piped input, CI — `init` names the flag that
+would have supplied the answer and exits 1, rather than guessing.
+
+### Editing files you own
+
+`init` writes into `openspec/config.yaml` and `CLAUDE.md`, which are yours and
+usually already have content. It edits them by splicing a delimited region and
+nothing else:
+
+```yaml
+context: |
+  Tech stack: TypeScript, Node.js       # yours, untouched
+  # opsx-tools:artifact-language lang=pt-BR
+  Write every OpenSpec artifact — proposal, design, specs, tasks — in Português (Brasil).
+  # opsx-tools:artifact-language:end
+```
+
+Every comment, key, blank line, and byte outside that region survives — the
+config file OpenSpec ships is mostly explanatory comments, and a YAML
+round-trip would destroy all of them. Removing the region takes exactly what it
+wrote, and takes the `context` key with it when nothing else is left.
+
+The delimiters carry their own settings, so `init` reports *which* language is
+set rather than only that something is, with no manifest file anywhere.
+
+If you edit the region by hand, `init` reports that it differs and shows you the
+change before touching it. If the delimiters are damaged — one missing, or the
+closing one first — it refuses to edit the file at all, changes nothing, and
+exits 1. Nothing is ever matched by resemblance.
+
+---
+
 ## Install the skills
 
 The **`skill`** subcommand installs and removes the skills this package ships.
 It reads them from its own installed package, so it works the same from a global
 install as from a clone — you never have to be standing in a checkout.
+
+`opsx-tools init` also installs them, as one item. The two are different zoom
+levels on the same thing: `init` sets a repository up, `skill` acts on one skill
+at one destination.
 
 ```bash
 # Show the current state and edit it: check to install, clear to remove
@@ -361,6 +490,18 @@ openspec-tools/
 │   ├── skill-destinations.ts  # The project and user skills directories
 │   ├── skill-state.ts         # Installed vs packaged, by comparison
 │   ├── skill-actions.ts       # Copying and deleting, with confirmation
+│   ├── init-cli.ts            # The 'init' subcommand: precondition, checklist,
+│   │                          #   plan, confirmation
+│   ├── component.ts           # What a provisionable component is: state, the
+│   │                          #   two kinds of edit, the plan and its diff
+│   ├── region.ts              # Delimited regions, format-independent
+│   ├── region-markdown.ts     # Regions in Markdown (HTML comments)
+│   ├── region-yaml.ts         # Regions inside a YAML block scalar
+│   ├── components/
+│   │   ├── index.ts               # The closed registry, in presentation order
+│   │   ├── skills.ts              # The packaged skills, as one item
+│   │   ├── artifact-language.ts   # → openspec/config.yaml, context field
+│   │   └── claude-workflow.ts     # → CLAUDE.md
 │   └── types.ts               # Shared types
 ├── skills/                        # The installable set: any directory here
 │   │                              # holding a SKILL.md is offered by 'skill'

@@ -1,6 +1,6 @@
 import { existsSync, statSync, realpathSync } from "fs";
 import { basename, dirname, resolve, sep } from "path";
-import type { ProjectIdentity } from "./types.js";
+import type { ProjectIdentity, ProjectSource } from "./types.js";
 
 /**
  * The one place a path becomes an identity: absolute, symlinks resolved,
@@ -51,14 +51,24 @@ function findUp(
 export function resolveProject(cwd: string = process.cwd()): ProjectIdentity {
   const start = normalize(cwd);
 
-  const root = normalize(
-    findUp(start, (dir) => isDirectory(resolve(dir, "openspec"))) ??
-      // `.git` is a file in a linked worktree, so existence is the test.
-      findUp(start, (dir) => existsSync(resolve(dir, ".git"))) ??
-      start
+  const openspecOwner = findUp(start, (dir) =>
+    isDirectory(resolve(dir, "openspec"))
   );
+  // Only asked when the first rule found nothing, so the walk is not paid for
+  // twice and the answer still says which rule produced the root.
+  const gitOwner = openspecOwner
+    ? undefined
+    // `.git` is a file in a linked worktree, so existence is the test.
+    : findUp(start, (dir) => existsSync(resolve(dir, ".git")));
+
+  const root = normalize(openspecOwner ?? gitOwner ?? start);
+  const source: ProjectSource = openspecOwner
+    ? "openspec"
+    : gitOwner
+    ? "git"
+    : "cwd";
 
   // The basename, not package.json's `name` — a name may be scoped, may not
   // exist, and is absent entirely when the target is a plain docs folder.
-  return { root, name: basename(root) || root };
+  return { root, name: basename(root) || root, source };
 }

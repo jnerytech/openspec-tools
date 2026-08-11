@@ -38,6 +38,13 @@ export type TargetMode = {
     filePath: string;
 };
 /**
+ * Which rule selected the project root. Reading and skill management care only
+ * about the root itself, but provisioning turns on the distinction: a root that
+ * won by holding `.git` is not an OpenSpec project, and the two are otherwise
+ * indistinguishable in the returned value.
+ */
+export type ProjectSource = "openspec" | "git" | "cwd";
+/**
  * The project being served, resolved once. `root` decides the port and `name`
  * is how the user tells one running reader from another.
  */
@@ -46,6 +53,8 @@ export interface ProjectIdentity {
     root: string;
     /** The root's basename. */
     name: string;
+    /** Why this root, and not a different one, was chosen. */
+    source: ProjectSource;
 }
 /** A skill the package ships, named by its directory — which is its `/command`. */
 export interface PackagedSkill {

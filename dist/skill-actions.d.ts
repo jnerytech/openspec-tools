@@ -15,6 +15,8 @@ export interface Assignment {
 export type Confirm = (message: string) => Promise<boolean>;
 export declare const ALWAYS_YES: Confirm;
 export declare function assign(skills: PackagedSkill[], dests: Destination[]): Assignment[];
+/** Replaces rather than merges: a file dropped from the packaged skill goes. */
+export declare function copyOver(skill: PackagedSkill, target: string): void;
 /**
  * Installs each assignment, reporting every destination's outcome on its own
  * line. An identical copy is a no-op that is still reported — the user asked a

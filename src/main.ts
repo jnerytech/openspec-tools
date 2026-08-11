@@ -2,6 +2,7 @@
 import { createRequire } from "module";
 import { Command } from "commander";
 import { readCommand } from "./cli.js";
+import { initCommand } from "./init-cli.js";
 import { skillCommand } from "./skills-cli.js";
 import { helpHint } from "./usage.js";
 
@@ -21,13 +22,14 @@ const program = new Command();
 
 program
   .name("opsx-tools")
-  .description("read OpenSpec changes in the browser, and manage the skills this package ships")
+  .description("set up an OpenSpec project, read its changes in the browser, and manage the skills this package ships")
   .version(pkg.version, "-v, --version", "output the version number")
   .enablePositionalOptions()
   .addHelpText(
     "after",
     `
 EXAMPLES
+  opsx-tools init                  # set this repo up with what this package offers
   opsx-tools read                  # list the open changes in this project
   opsx-tools read add-dark-mode    # read one change
   opsx-tools skill                 # show and edit which skills are installed
@@ -39,6 +41,7 @@ Run 'opsx-tools <command> --help' for what a command accepts.
 
 program.addCommand(readCommand());
 program.addCommand(skillCommand());
+program.addCommand(initCommand());
 
 applyHelpHints(program);
 

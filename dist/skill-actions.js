@@ -21,7 +21,7 @@ function report(message) {
     console.log(message);
 }
 /** Replaces rather than merges: a file dropped from the packaged skill goes. */
-function copyOver(skill, target) {
+export function copyOver(skill, target) {
     rmSync(target, { recursive: true, force: true });
     cpSync(skill.path, target, { recursive: true });
 }
