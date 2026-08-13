@@ -158,36 +158,32 @@ testCovering(
   }
 );
 
-/**
- * A language whose name carries a space is written correctly - the directive
- * names it in full - but the delimiter records parameters as space-separated
- * `key=value` pairs, so reading the region back recovers only the first word
- * and the state comes out as "differs" rather than "provisioned".
- *
- * Recorded here rather than fixed: this change alters no production code, on
- * purpose. The case is pinned so the defect is visible and so the day someone
- * changes the payload encoding, this is what tells them what it was for.
- */
-test("KNOWN DEFECT: a language name containing a space does not survive the delimiter", async () => {
-  await withFiles({ [CONFIG]: BARE_CONFIG }, async (root) => {
-    const p = project(root);
+testCovering(
+  "a language name containing a space survives the delimiter",
+  "artifact-language",
+  ["A language outside the offered set is accepted", "State names the configured language"],
+  async () => {
+    await withFiles({ [CONFIG]: BARE_CONFIG }, async (root) => {
+      const p = project(root);
 
-    apply(
-      artifactLanguageComponent.plan(p, { lang: "Norsk bokmål" }),
-      artifactLanguageComponent,
-      p
-    );
+      apply(
+        artifactLanguageComponent.plan(p, { lang: "Norsk bokmål" }),
+        artifactLanguageComponent,
+        p
+      );
 
-    // Written in full, and named in full, which is what the user reads.
-    const written = readFileSync(resolve(root, CONFIG), "utf8");
-    assert.match(written, /in Norsk bokmål\./);
-
-    // But the state, read back out of the delimiter, has lost the second word.
-    const state = artifactLanguageComponent.inspect(p);
-    assert.equal(state.kind, "differs");
-    assert.equal(state.kind === "differs" ? state.detail : "", "Norsk");
-  });
-});
+      // Named in full in the directive the agent reads...
+      const written = readFileSync(resolve(root, CONFIG), "utf8");
+      assert.match(written, /in Norsk bokmål\./);
+      // ...and recovered in full from the delimiter, which is what makes the
+      // state say which language is set rather than half of one.
+      assert.deepEqual(artifactLanguageComponent.inspect(p), {
+        kind: "provisioned",
+        detail: "Norsk bokmål",
+      });
+    });
+  }
+);
 
 testCovering(
   "the state is read back out of the file, and names the configured language",

@@ -44,8 +44,36 @@ export const yamlCommentFormat: RegionFormat = {
 
 export type RegionParams = Record<string, string>;
 
+/**
+ * Pairs are separated by whitespace, so a value containing any would be read
+ * back as two pairs and lose everything after the first word — which is what a
+ * language named "Norsk bokmål" did. Only what breaks the format is escaped:
+ * whitespace, and the escape character itself. Everything else, accents
+ * included, stays as written, because this line is read by people in a file
+ * they own.
+ */
+function encodeValue(value: string): string {
+  return value.replace(/[%\s]/g, (char) =>
+    char === "%"
+      ? "%25"
+      : `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`
+  );
+}
+
+/**
+ * The inverse. A value written before this existed has no `%` in it and comes
+ * back unchanged, so regions already in a user's file keep reading correctly.
+ */
+function decodeValue(value: string): string {
+  return value.replace(/%([0-9A-Fa-f]{2})/g, (_, hex: string) =>
+    String.fromCharCode(parseInt(hex, 16))
+  );
+}
+
 export function renderOpenPayload(id: string, params: RegionParams): string {
-  const pairs = Object.entries(params).map(([key, value]) => `${key}=${value}`);
+  const pairs = Object.entries(params).map(
+    ([key, value]) => `${key}=${encodeValue(value)}`
+  );
   return [`${PREFIX}${id}`, ...pairs].join(" ");
 }
 
@@ -61,7 +89,7 @@ function parseOpenPayload(payload: string, id: string): RegionParams | null {
   const params: RegionParams = {};
   for (const pair of pairs) {
     const eq = pair.indexOf("=");
-    if (eq > 0) params[pair.slice(0, eq)] = pair.slice(eq + 1);
+    if (eq > 0) params[pair.slice(0, eq)] = decodeValue(pair.slice(eq + 1));
   }
   return params;
 }

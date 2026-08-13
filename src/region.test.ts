@@ -138,6 +138,53 @@ test("a region written without parameters reads back as none", () => {
   assert.deepEqual(found.params, {});
 });
 
+test("a parameter value containing a space survives the round trip", () => {
+  // Pairs are separated by whitespace, so an unescaped space here used to read
+  // back as two pairs and lose everything after the first word.
+  const lines = [open({ lang: "Norsk bokmål" }), "body", close()];
+
+  const found = findRegion(lines, ID, markdownFormat);
+
+  assert.equal(found.kind, "found");
+  if (found.kind !== "found") return;
+  assert.deepEqual(found.params, { lang: "Norsk bokmål" });
+  // Escaped only where it had to be: the delimiter stays one line.
+  assert.equal(lines[0].split("\n").length, 1);
+  assert.match(lines[0], /lang=Norsk%20bokm/);
+});
+
+test("accents and other non-ASCII are left readable in the delimiter", () => {
+  const lines = [open({ lang: "Português" }), close()];
+
+  assert.match(lines[0], /lang=Português/);
+  const found = findRegion(lines, ID, markdownFormat);
+  assert.equal(found.kind, "found");
+  if (found.kind !== "found") return;
+  assert.deepEqual(found.params, { lang: "Português" });
+});
+
+test("a value written before values were escaped still reads back unchanged", () => {
+  // No '%' in it, so decoding is a no-op: regions already in a user's file
+  // keep meaning what they meant.
+  const legacy = [`<!-- opsx-tools:${ID} lang=pt-BR created=1 -->`, close()];
+
+  const found = findRegion(legacy, ID, markdownFormat);
+
+  assert.equal(found.kind, "found");
+  if (found.kind !== "found") return;
+  assert.deepEqual(found.params, { lang: "pt-BR", created: "1" });
+});
+
+test("the escape character itself round-trips", () => {
+  const lines = [open({ note: "100% sure" }), close()];
+
+  const found = findRegion(lines, ID, markdownFormat);
+
+  assert.equal(found.kind, "found");
+  if (found.kind !== "found") return;
+  assert.deepEqual(found.params, { note: "100% sure" });
+});
+
 test("a parameter value containing '=' keeps everything after the first one", () => {
   const found = findRegion(
     [open({ note: "a=b=c" }), close()],
