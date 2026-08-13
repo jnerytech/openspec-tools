@@ -1,0 +1,14 @@
+#!/bin/sh
+#
+# Runs the test suite before every commit. Versioned here rather than in
+# .git/hooks/, which Git does not track: activated with
+#
+#   git config core.hooksPath .githooks
+#
+# which `npm install` also does through the "prepare" script.
+#
+# `git commit --no-verify` skips it, deliberately and knowingly.
+
+set -e
+
+npm test

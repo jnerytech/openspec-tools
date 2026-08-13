@@ -1,6 +1,16 @@
 import { marked } from "marked";
 import { readFile } from "fs/promises";
+import { compareArtifacts } from "./scanner.js";
 import type { Change, MarkdownFile } from "./types.js";
+
+/**
+ * Every route that shows artifacts passes through here, so the reading order
+ * holds however the change was reached. Copied rather than sorted in place: the
+ * caller's array is its own, and the index still renders from the scanned one.
+ */
+function inReadingOrder(files: MarkdownFile[]): MarkdownFile[] {
+  return [...files].sort(compareArtifacts);
+}
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -492,7 +502,9 @@ export async function renderChange(
   change: Change,
   view: ArchiveViewState = HIDDEN_ARCHIVE
 ): Promise<string> {
-  const tocItems = change.artifacts
+  const artifacts = inReadingOrder(change.artifacts);
+
+  const tocItems = artifacts
     .map(
       (a, i) =>
         `<li><a href="#artifact-${i}">${escHtml(a.name)}</a></li>`
@@ -500,7 +512,7 @@ export async function renderChange(
     .join("");
 
   const sections = await Promise.all(
-    change.artifacts.map(async (artifact, i) => {
+    artifacts.map(async (artifact, i) => {
       const raw = await readFile(artifact.filePath, "utf-8");
       const html = await marked.parse(raw);
       return `
@@ -548,7 +560,9 @@ export async function renderFiles(
   title: string,
   backHref?: string
 ): Promise<string> {
-  const tocItems = files
+  const ordered = inReadingOrder(files);
+
+  const tocItems = ordered
     .map(
       (f, i) =>
         `<li><a href="#section-${i}">${escHtml(f.name)}</a></li>`
@@ -556,7 +570,7 @@ export async function renderFiles(
     .join("");
 
   const sections = await Promise.all(
-    files.map(async (f, i) => {
+    ordered.map(async (f, i) => {
       const raw = await readFile(f.filePath, "utf-8");
       const html = await marked.parse(raw);
       return `

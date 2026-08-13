@@ -27,8 +27,13 @@ function artifactSortKey(name) {
  * Artifacts of equal rank - several spec files, or several artifacts the order
  * does not name - fall back to the slug, which encodes the path relative to the
  * change and is therefore unique within it and independent of readdir order.
+ *
+ * Exported because the renderer applies it too: a route that builds a change
+ * without scanning it - the reader pointed straight at one change - reached the
+ * page with the directory's own order, and the guarantee has to live where the
+ * page is built, not only where changes are discovered.
  */
-function compareArtifacts(a, b) {
+export function compareArtifacts(a, b) {
     const byRank = artifactSortKey(a.name) - artifactSortKey(b.name);
     return byRank !== 0 ? byRank : a.slug.localeCompare(b.slug);
 }

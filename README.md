@@ -543,6 +543,37 @@ node dist/main.js read
 > `~/.npm/_cacache/tmp/`, which is then cleaned up — leaving a dangling `bin`
 > symlink and a `command not found`. Renaming the script avoids that path.
 
+### Tests and the pre-commit hook
+
+```bash
+# The suite: Node's own test runner, no extra dependency
+npm test
+```
+
+Tests live next to the code they cover, as `src/*.test.ts`. `src/test-fixture.ts`
+builds throwaway change directories under the OS temp dir, so a case states in
+its own body which artifacts it is ordering.
+
+A `pre-commit` hook runs that suite before every commit. It is versioned in
+`.githooks/` — Git does not track `.git/hooks/` — and activated by pointing Git
+at that directory:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`npm install` already does this for you, through the `prepare` script. That
+means installing from source writes `core.hooksPath` into the repository's own
+`.git/config`; it never touches your global Git configuration, and it is a
+no-op where there is no repository at all (an extracted tarball, a CI checkout
+without `.git`).
+
+To commit without running the suite — knowingly:
+
+```bash
+git commit --no-verify
+```
+
 ---
 
 ## Project structure
@@ -559,6 +590,9 @@ openspec-tools/
 │   ├── port.ts                # Derives a project's port from its root
 │   ├── scanner.ts             # Reads openspec/ directory structure
 │   ├── renderer.ts            # Markdown → read-aloud HTML
+│   ├── test-fixture.ts        # Throwaway change trees for the tests
+│   ├── scanner.test.ts        # The reading order, as the scanner returns it
+│   ├── renderer.test.ts       # The reading order, as the page presents it
 │   ├── skills-cli.ts          # The 'skill' subcommand, prompts
 │   ├── skill-source.ts        # Finds the packaged skills, from the module
 │   ├── skill-destinations.ts  # The project and user skills directories
@@ -599,6 +633,8 @@ openspec-tools/
 │       ├── glossary.md
 │       ├── patterns.md
 │       └── chapters/
+├── .githooks/
+│   └── pre-commit                 # Runs npm test; activated via core.hooksPath
 └── README.md
 ```
 

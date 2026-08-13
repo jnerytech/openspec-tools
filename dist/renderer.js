@@ -1,5 +1,14 @@
 import { marked } from "marked";
 import { readFile } from "fs/promises";
+import { compareArtifacts } from "./scanner.js";
+/**
+ * Every route that shows artifacts passes through here, so the reading order
+ * holds however the change was reached. Copied rather than sorted in place: the
+ * caller's array is its own, and the index still renders from the scanned one.
+ */
+function inReadingOrder(files) {
+    return [...files].sort(compareArtifacts);
+}
 marked.setOptions({ gfm: true, breaks: false });
 const CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -423,10 +432,11 @@ export function renderIndex(project, changes, changesDir, options = {}) {
     return pageShell(project, "Open Changes", body);
 }
 export async function renderChange(project, change, view = HIDDEN_ARCHIVE) {
-    const tocItems = change.artifacts
+    const artifacts = inReadingOrder(change.artifacts);
+    const tocItems = artifacts
         .map((a, i) => `<li><a href="#artifact-${i}">${escHtml(a.name)}</a></li>`)
         .join("");
-    const sections = await Promise.all(change.artifacts.map(async (artifact, i) => {
+    const sections = await Promise.all(artifacts.map(async (artifact, i) => {
         const raw = await readFile(artifact.filePath, "utf-8");
         const html = await marked.parse(raw);
         return `
@@ -461,10 +471,11 @@ export async function renderChange(project, change, view = HIDDEN_ARCHIVE) {
     return pageShell(project, title, body);
 }
 export async function renderFiles(project, files, title, backHref) {
-    const tocItems = files
+    const ordered = inReadingOrder(files);
+    const tocItems = ordered
         .map((f, i) => `<li><a href="#section-${i}">${escHtml(f.name)}</a></li>`)
         .join("");
-    const sections = await Promise.all(files.map(async (f, i) => {
+    const sections = await Promise.all(ordered.map(async (f, i) => {
         const raw = await readFile(f.filePath, "utf-8");
         const html = await marked.parse(raw);
         return `
