@@ -8,6 +8,7 @@ import {
 } from "./component.js";
 import { COMPONENTS } from "./components/index.js";
 import { missingConfigReason } from "./components/artifact-language.js";
+import { ExitError } from "./exit.js";
 import { resolveProject } from "./project.js";
 import { commandPath, usageError } from "./usage.js";
 import type { ProjectIdentity } from "./types.js";
@@ -152,11 +153,10 @@ function refuseUnsafe(
   state: ComponentState
 ): void {
   if (state.kind !== "unsafe") return;
-  console.error(
-    `[openspec-tools] ${component.label} cannot be provisioned: ${state.reason}.`
+  throw new ExitError(
+    `[openspec-tools] ${component.label} cannot be provisioned: ${state.reason}.`,
+    ["Nothing was written. Resolve that by hand and run this again."]
   );
-  console.error("Nothing was written. Resolve that by hand and run this again.");
-  process.exit(1);
 }
 
 export function initCommand(): Command {
@@ -217,14 +217,15 @@ NOTE
     // without OpenSpec, so a repository that has none is not a smaller target,
     // it is the wrong one.
     if (project.source !== "openspec") {
-      console.error(
-        `[openspec-tools] No OpenSpec project here: nothing under ${project.root} owns an openspec/ directory.`
+      throw new ExitError(
+        `[openspec-tools] No OpenSpec project here: nothing under ${project.root} owns an openspec/ directory.`,
+        [
+          "",
+          "  Run 'openspec init' to create one, then run this again.",
+          "",
+          `${commandPath(cmd)} --help for what this provisions.`,
+        ]
       );
-      console.error("");
-      console.error("  Run 'openspec init' to create one, then run this again.");
-      console.error("");
-      console.error(commandPath(cmd) + " --help for what this provisions.");
-      process.exit(1);
     }
 
     const states = new Map<string, ComponentState>(

@@ -43,7 +43,9 @@ export function readDeclared(dir: string): Set<string> {
     return declared;
   }
 
-  for (const file of files) {
+  // Only what the fixture writes: the same directory may hold other output
+  // from the same run, and a stray file is not a set of declarations.
+  for (const file of files.filter((name) => name.endsWith(".jsonl"))) {
     const text = readFileSync(join(dir, file), "utf8");
     for (const line of text.split("\n")) {
       if (line.trim() === "") continue;

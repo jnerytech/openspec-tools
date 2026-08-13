@@ -98,5 +98,5 @@ export interface PlanEntry<S = unknown> {
  * rather than the component, because the path is what the user has to go look
  * at, and stops rather than continuing into a half-applied state.
  */
-export declare function applyPlan(project: ProjectIdentity, entries: PlanEntry[]): never | void;
+export declare function applyPlan(project: ProjectIdentity, entries: PlanEntry[]): void;
 //# sourceMappingURL=component.d.ts.map

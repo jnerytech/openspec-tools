@@ -1,8 +1,8 @@
-import type { Component } from "../component.js";
 import { artifactLanguageComponent } from "./artifact-language.js";
 import { claudeWorkflowComponent } from "./claude-workflow.js";
 import { commitConventionComponent } from "./commit-convention.js";
 import { skillsComponent } from "./skills.js";
+import type { Component } from "../component.js";
 
 /**
  * Every component `init` offers, in the order it presents them: what the
@@ -17,7 +17,3 @@ export const COMPONENTS: Component<any>[] = [
   claudeWorkflowComponent,
   commitConventionComponent,
 ];
-
-export function componentById(id: string): Component<any> | undefined {
-  return COMPONENTS.find((component) => component.id === id);
-}

@@ -1,5 +1,6 @@
 import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { dirname } from "path";
+import { ExitError } from "./exit.js";
 import type { ProjectIdentity } from "./types.js";
 
 /**
@@ -195,18 +196,17 @@ export interface PlanEntry<S = unknown> {
 export function applyPlan(
   project: ProjectIdentity,
   entries: PlanEntry[]
-): never | void {
+): void {
   for (const { component, edits } of entries) {
     for (const edit of edits) {
       try {
         component.applyEdit(project, edit);
       } catch (err) {
-        console.error(
+        throw new ExitError(
           `[openspec-tools] Could not complete the change to ${editPath(edit)}: ${
             (err as Error).message
           }`
         );
-        process.exit(1);
       }
     }
   }

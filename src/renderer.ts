@@ -386,6 +386,9 @@ function linkTo(
   state: boolean = view.current
 ): string {
   if (state === view.initial) return path;
+  // Coverage reason: every path handed to this is built here, and none of them
+  // carries a query string of its own.
+  /* node:coverage ignore next */
   const sep = path.includes("?") ? "&" : "?";
   return `${path}${sep}archived=${state ? "1" : "0"}`;
 }
@@ -422,6 +425,9 @@ function archivedList(changes: Change[], view: ArchiveViewState): string {
         ? `Archived ${escHtml(date)} · ${artifactMeta(c)}`
         : artifactMeta(c);
       return changeItem(
+        // Coverage reason: this list is built from the archive scan, which
+        // always records a display name.
+        /* node:coverage ignore next */
         c.archived?.displayName ?? c.name,
         meta,
         linkTo(`/archived/${encodeURIComponent(c.slug)}`, view)
@@ -614,6 +620,9 @@ export async function renderSingleFile(
 ): Promise<string> {
   const raw = await readFile(filePath, "utf-8");
   const html = await marked.parse(raw);
+  // Coverage reason: `split` always yields at least one element, so `pop`
+  // cannot come back undefined and the fallback name is unreachable.
+  /* node:coverage ignore next */
   const name = filePath.split("/").pop()?.replace(/\.md$/, "") ?? "Document";
 
   const body = `

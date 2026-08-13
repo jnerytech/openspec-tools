@@ -7,18 +7,24 @@
 #
 # which `npm install` also does through the "prepare" script.
 #
-# The gate is three checks, in the order they refuse:
+# The gate is four checks, in the order they refuse:
 #
 #   1. types      tsc over src/ *including* the test files, which the
-#                 publishing config excludes. The suite runs under tsx, which
-#                 strips type annotations without checking them, so without
-#                 this a type error crosses the whole gate untouched.
-#   2. suite      every test, which is also the run that collects which
-#                 scenario each test declares it covers.
-#   3. coverage   every scenario in openspec/specs/ is either covered by a
+#                 publishing config excludes. It also emits the JavaScript
+#                 the suite then runs, so the check and the run are the same
+#                 artefact and cannot describe different code.
+#   2. suite      every test, run against that output. The same run collects
+#                 which scenario each test declares, and measures which lines,
+#                 branches and functions were reached.
+#   3. scenarios  every scenario in openspec/specs/ is either covered by a
 #                 test or declared out of scope with a reason, and nothing
 #                 that openspec/coverage.json records as covered has stopped
-#                 being covered.
+#                 being covered. This comes before the code floor because it
+#                 names which promise is undefended, which is more actionable
+#                 than naming a line.
+#   4. code       every line, branch and function of production code is
+#                 exercised, or is marked as deliberately not exercised with
+#                 a `// Coverage reason:` beside the directive.
 #
 # Nothing here is a feature of opsx-tools. This is how this repository holds
 # itself to its own specs: no component provisions it, no subcommand runs it,

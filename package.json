@@ -6,19 +6,30 @@
   "bin": {
     "opsx-tools": "./dist/main.js"
   },
-  "files": ["dist", "skills", "README.md"],
+  "files": [
+    "dist",
+    "skills",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "compile": "npm run build",
-    "typecheck": "tsc -p tsconfig.check.json",
+    "typecheck": "node -e \"require('fs').rmSync('.tscheck',{recursive:true,force:true})\" && tsc -p tsconfig.check.json",
     "dev": "tsx src/main.ts",
     "start": "node dist/main.js",
-    "test": "tsx --test \"src/**/*.test.ts\"",
-    "coverage": "tsx --test --experimental-test-coverage \"src/**/*.test.ts\"",
+    "test": "npm run typecheck && npm run test:compiled",
+    "test:compiled": "node --enable-source-maps --experimental-test-module-mocks --test \".tscheck/**/*.test.js\"",
+    "coverage": "npm run typecheck && node --enable-source-maps --experimental-test-module-mocks --test --experimental-test-coverage \".tscheck/**/*.test.js\"",
     "gate": "tsx src/gate/run.ts",
     "prepare": "npm run build && (git config core.hooksPath .githooks || true)"
   },
-  "keywords": ["openspec", "sdd", "spec-driven", "ai", "reader"],
+  "keywords": [
+    "openspec",
+    "sdd",
+    "spec-driven",
+    "ai",
+    "reader"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=20"

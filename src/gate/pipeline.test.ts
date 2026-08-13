@@ -1,5 +1,7 @@
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runGate, type GateSteps } from "./pipeline.js";
+import type { CodeCoverageVerdict } from "./code-coverage.js";
 import { testCovering } from "../test-fixture.js";
 import type { Verdict } from "./verify.js";
 
@@ -18,6 +20,29 @@ const CLEAN: Verdict = {
   coveredCount: 3,
   specifiedCount: 3,
   outOfScopeCount: 0,
+};
+
+const CODE_CLEAN: CodeCoverageVerdict = {
+  ok: true,
+  files: [],
+  measuredFiles: 3,
+  totalFiles: 3,
+};
+
+const CODE_DIRTY: CodeCoverageVerdict = {
+  ok: false,
+  files: [
+    {
+      file: "server.ts",
+      uncoveredLines: [42],
+      uncoveredBranches: [],
+      uncoveredFunctions: [],
+      exclusionsWithoutReason: [],
+      unmeasured: false,
+    },
+  ],
+  measuredFiles: 3,
+  totalFiles: 3,
 };
 
 const DIRTY: Verdict = {
@@ -45,6 +70,10 @@ function steps(overrides: Partial<GateSteps> = {}): GateSteps & {
       calls.push("coverage");
       return CLEAN;
     },
+    code: () => {
+      calls.push("code");
+      return CODE_CLEAN;
+    },
   };
 
   const merged: GateSteps = {
@@ -66,6 +95,12 @@ function steps(overrides: Partial<GateSteps> = {}): GateSteps & {
           return overrides.coverage!(declared);
         }
       : base.coverage,
+    code: overrides.code
+      ? () => {
+          calls.push("code");
+          return overrides.code!();
+        }
+      : base.code,
   };
 
   return Object.assign(merged, { calls });
@@ -125,7 +160,7 @@ testCovering(
     const result = runGate(injected);
 
     assert.equal(result.ok, true);
-    assert.deepEqual(injected.calls, ["types", "suite", "coverage"]);
+    assert.deepEqual(injected.calls, ["types", "suite", "coverage", "code"]);
     assert.equal(result.failed, undefined);
     assert.equal(result.verdict?.ok, true);
   }
@@ -156,7 +191,7 @@ testCovering(
 testCovering(
   "line coverage is reported on every run and decides nothing",
   "quality-gates",
-  ["A cobertura de linha é relatada como diagnóstico"],
+  ["As três medidas são relatadas mesmo quando o portão aceita"],
   () => {
     // A dismal line percentage, and everything else clean.
     const table = "# all files | 3.20 | 1.10 | 2.00 |";
@@ -182,7 +217,7 @@ testCovering(
 testCovering(
   "scenario coverage is what refuses, whatever the line percentage says",
   "quality-gates",
-  ["O critério é o scenario, não a linha"],
+  ["Um scenario descoberto recusa mesmo com cobertura total de código"],
   () => {
     // Perfect lines, a missing scenario: the gate refuses.
     const injected = steps({
@@ -214,5 +249,54 @@ testCovering(
       result.lines.join("\n"),
       /2\/3 specified scenarios covered · 0 out of scope · 1 uncovered/
     );
+  }
+);
+
+testCovering(
+  "a scenario left undefended refuses before the code floor is even measured",
+  "quality-gates",
+  ["O critério de scenario é verificado primeiro"],
+  () => {
+    const injected = steps({ coverage: () => DIRTY });
+
+    const result = runGate(injected);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.failed, "coverage");
+    // The code floor never ran: the more actionable failure decided it.
+    assert.deepEqual(injected.calls, ["types", "suite", "coverage"]);
+  }
+);
+
+testCovering(
+  "code that no test reaches refuses even when every scenario is covered",
+  "quality-gates",
+  ["Código não exercitado recusa mesmo com todo scenario coberto", "O arquivo e a medida que falharam são nomeados"],
+  () => {
+    const injected = steps({ code: () => CODE_DIRTY });
+
+    const result = runGate(injected);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.failed, "code");
+    assert.deepEqual(injected.calls, ["types", "suite", "coverage", "code"]);
+    const text = result.lines.join("\n");
+    assert.match(text, /production code that no test exercises/);
+    assert.match(text, /server\.ts/);
+    assert.match(text, /lines\s+42/);
+  }
+);
+
+testCovering(
+  "an undefended scenario refuses even when the code floor is met",
+  "quality-gates",
+  ["Um scenario descoberto recusa mesmo com cobertura total de código"],
+  () => {
+    const injected = steps({ coverage: () => DIRTY, code: () => CODE_CLEAN });
+
+    const result = runGate(injected);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.failed, "coverage");
   }
 );

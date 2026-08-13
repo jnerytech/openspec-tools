@@ -7,5 +7,4 @@ import type { Component } from "../component.js";
  * reviewed.
  */
 export declare const COMPONENTS: Component<any>[];
-export declare function componentById(id: string): Component<any> | undefined;
 //# sourceMappingURL=index.d.ts.map

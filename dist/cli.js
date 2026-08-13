@@ -54,6 +54,10 @@ async function archivedChangeNames(changesDir) {
         return [];
     const changes = await scanArchivedChanges(changesDir);
     return changes.map((c) => ({
+        // Coverage reason: every change this reads comes from the archive scan,
+        // which always records a display name. The fallback keeps the type honest
+        // for a shape the scanner cannot produce.
+        /* node:coverage ignore next */
         name: c.archived?.displayName ?? c.name,
         archived: true,
     }));
@@ -130,7 +134,13 @@ async function warnArchivedTwin(cmd, target, changesBase) {
         `  An archived change of the same name also exists: ${twin.name}\n` +
         `  Read it with: ${commandPath(cmd)} ${twin.name}\n`);
 }
-async function resolveMode(cmd, target) {
+/**
+ * Which target the reader was pointed at. Exported because it is the whole of
+ * what a `read` invocation decides before anything is bound: driving it
+ * directly is how the resolution is exercised without starting a server, in the
+ * process the coverage instrumentation is measuring.
+ */
+export async function resolveMode(cmd, target) {
     if (!target)
         return resolveDefaultMode(cmd);
     const abs = resolve(process.cwd(), target);
@@ -247,6 +257,10 @@ PORT
             openBrowser: options.open,
             archived: options.archived,
         };
+        // Coverage reason: the action's last step hands off to `startServer`,
+        // which is exercised directly and closed again. Reaching it from here
+        // would start a reader this call gives the caller no way to close.
+        /* node:coverage ignore next */
         await startServer(opts);
     });
 }

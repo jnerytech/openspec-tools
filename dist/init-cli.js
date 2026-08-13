@@ -3,6 +3,7 @@ import { confirm as confirmPrompt, checkbox } from "@inquirer/prompts";
 import { applyPlan, describeComponentState, renderPlan, } from "./component.js";
 import { COMPONENTS } from "./components/index.js";
 import { missingConfigReason } from "./components/artifact-language.js";
+import { ExitError } from "./exit.js";
 import { resolveProject } from "./project.js";
 import { commandPath, usageError } from "./usage.js";
 /**
@@ -102,9 +103,7 @@ function requireInteractive(cmd, missing, options) {
 function refuseUnsafe(component, state) {
     if (state.kind !== "unsafe")
         return;
-    console.error(`[openspec-tools] ${component.label} cannot be provisioned: ${state.reason}.`);
-    console.error("Nothing was written. Resolve that by hand and run this again.");
-    process.exit(1);
+    throw new ExitError(`[openspec-tools] ${component.label} cannot be provisioned: ${state.reason}.`, ["Nothing was written. Resolve that by hand and run this again."]);
 }
 export function initCommand() {
     const init = new Command("init")
@@ -159,12 +158,12 @@ NOTE
         // without OpenSpec, so a repository that has none is not a smaller target,
         // it is the wrong one.
         if (project.source !== "openspec") {
-            console.error(`[openspec-tools] No OpenSpec project here: nothing under ${project.root} owns an openspec/ directory.`);
-            console.error("");
-            console.error("  Run 'openspec init' to create one, then run this again.");
-            console.error("");
-            console.error(commandPath(cmd) + " --help for what this provisions.");
-            process.exit(1);
+            throw new ExitError(`[openspec-tools] No OpenSpec project here: nothing under ${project.root} owns an openspec/ directory.`, [
+                "",
+                "  Run 'openspec init' to create one, then run this again.",
+                "",
+                `${commandPath(cmd)} --help for what this provisions.`,
+            ]);
         }
         const states = new Map(COMPONENTS.map((component) => [component.id, component.inspect(project)]));
         const flagIntents = intentsFromFlags(cmd);

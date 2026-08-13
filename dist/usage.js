@@ -1,3 +1,4 @@
+import { ExitError } from "./exit.js";
 /**
  * The command path as the user typed it — "opsx-tools read", not "read".
  * Walking to the root is what lets a hint name the whole invocation without
@@ -21,12 +22,15 @@ export function helpHint(cmd) {
  * Every usage error ends with the same pointer to the failing command's help,
  * so no error path can forget it. Never prints the full usage listing — the
  * error stays first.
+ *
+ * Throws rather than exiting: the message and its order are decided here, and
+ * where the process ends is decided in one place, at the top. That is also what
+ * lets a test observe a refusal without generating a process.
  */
 export function usageError(cmd, message, details = []) {
-    console.error(`[openspec-tools] ${message}`);
-    for (const line of details)
-        console.error(line);
-    console.error(helpHint(cmd));
-    process.exit(1);
+    throw new ExitError(`[openspec-tools] ${message}`, [
+        ...details,
+        helpHint(cmd),
+    ]);
 }
 //# sourceMappingURL=usage.js.map

@@ -17,6 +17,10 @@ function normalize(path: string): string {
     // A path that cannot be resolved is still an identity; keep the absolute
     // form rather than failing before the server has said anything.
   }
+  // Coverage reason: `resolve` and `realpathSync` both strip a trailing
+  // separator already, so the only path that ends in one is the filesystem
+  // root — which the length test excludes. The strip is belt and braces.
+  /* node:coverage ignore next */
   return real.length > 1 && real.endsWith(sep) ? real.slice(0, -1) : real;
 }
 

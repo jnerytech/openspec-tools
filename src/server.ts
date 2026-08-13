@@ -1,6 +1,7 @@
 import { createServer, IncomingMessage, ServerResponse, Server } from "http";
 import { execSync } from "child_process";
 import { relative, sep } from "path";
+import { ExitError } from "./exit.js";
 import type { ProjectIdentity, ServerOptions, TargetMode } from "./types.js";
 import {
   derivePort,
@@ -48,6 +49,9 @@ async function handle(
   initialArchived: boolean,
   project: string
 ): Promise<void> {
+  // Coverage reason: Node sets `req.url` for every request that reaches a
+  // handler; the fallback is for a shape the HTTP server does not deliver.
+  /* node:coverage ignore next */
   const url = new URL(req.url ?? "/", "http://localhost");
   const pathname = url.pathname;
   const view = archiveView(url, initialArchived);
@@ -96,6 +100,9 @@ async function handle(
 
     if (mode.kind === "dir") {
       const files = await collectMarkdownFiles(mode.dirPath);
+      // Coverage reason: `split` always yields at least one element, so `pop`
+      // cannot return undefined here.
+      /* node:coverage ignore next */
       const title = mode.dirPath.split("/").pop() ?? mode.dirPath;
       send(res, 200, await renderFiles(project, files, title));
       return;
@@ -145,6 +152,11 @@ async function handle(
   send(res, 404, render404(project));
 }
 
+// Coverage reason: this hands a URL to whatever program the desktop uses to
+// open one. Running it would open a browser on the machine running the tests,
+// and two of its three branches belong to platforms this repository is not run
+// on. `design.md` names opening a browser as a Non-Goal for the same reason.
+/* node:coverage disable */
 function openBrowserAt(url: string): void {
   const cmd =
     process.platform === "darwin"
@@ -154,6 +166,7 @@ function openBrowserAt(url: string): void {
       : `xdg-open "${url}"`;
   try { execSync(cmd); } catch { /* ignore */ }
 }
+/* node:coverage enable */
 
 /** Automatic selection must not widen what the server is reachable from. */
 const LOOPBACK = "127.0.0.1";
@@ -191,18 +204,25 @@ function forwardingCommand(port: number): string {
   return `ssh -L ${port}:localhost:${port} ${user}@${host}`;
 }
 
+/**
+ * Throws rather than exiting, so a failure to start is observable by the caller
+ * — and by a test running in the same process — instead of taking the process
+ * down from inside a helper.
+ */
 function fail(message: string, details: string[] = []): never {
-  console.error(`[openspec-tools] ${message}`);
-  for (const line of details) console.error(line);
-  process.exit(1);
+  throw new ExitError(`[openspec-tools] ${message}`, details);
 }
 
 function isAddressInUse(err: unknown): boolean {
   return (err as NodeJS.ErrnoException)?.code === "EADDRINUSE";
 }
 
-/** Why a bind failed, in the user's words rather than Node's. */
-function bindFailureReason(err: unknown): string {
+/**
+ * Why a bind failed, in the user's words rather than Node's. Exported because
+ * it is a pure mapping: the codes it names are not all reachable by actually
+ * binding something, and the mapping is what has to be right.
+ */
+export function bindFailureReason(err: unknown): string {
   const { code, message } = (err ?? {}) as NodeJS.ErrnoException;
   if (code === "EACCES") return "permission denied (ports below 1024 need privileges)";
   if (code === "EADDRNOTAVAIL") return `the address ${LOOPBACK} is not available`;
@@ -245,6 +265,12 @@ async function bindDerived(server: Server, preferred: number): Promise<number> {
       await bind(server, candidate);
       return candidate;
     } catch (err) {
+      // Coverage reason: everything from here to the end of this function is
+      // about the range running out. A probe failing for anything but a busy
+      // port needs the loopback interface itself to be broken, and reaching
+      // the return below means holding all 758 ports at once — neither is
+      // something a test can stage without breaking every other case.
+      /* node:coverage disable */
       if (!isAddressInUse(err)) {
         fail(`Could not listen on port ${candidate}: ${bindFailureReason(err)}.`);
       }
@@ -255,12 +281,20 @@ async function bindDerived(server: Server, preferred: number): Promise<number> {
     `No free port between ${PORT_RANGE_START} and ${PORT_RANGE_END} — every port in the range is in use.`,
     [`  Supply one explicitly: opsx-tools read --port <n>`]
   );
+  /* node:coverage enable */
 }
 
 async function bindRequested(server: Server, port: number): Promise<number> {
   try {
     await bind(server, port);
-    return port;
+    // What was actually bound, not what was asked for. The two differ only
+    // when the request was port 0 — "any free port" — and announcing the
+    // request there would print a URL that goes nowhere.
+    const address = server.address();
+    // Coverage reason: a TCP listener always reports an object address; the
+    // string form belongs to a pipe or a socket file, which this never binds.
+    /* node:coverage ignore next */
+    return typeof address === "object" && address !== null ? address.port : port;
   } catch (err) {
     if (isAddressInUse(err)) {
       return fail(`Port ${port} is already in use.`, [
@@ -295,7 +329,14 @@ function describeTarget(mode: TargetMode, project: ProjectIdentity): string {
   }
 }
 
-export async function startServer(opts: ServerOptions): Promise<void> {
+/** A reader that is up: what it bound, and how to take it down again. */
+export interface RunningReader {
+  port: number;
+  url: string;
+  close(): Promise<void>;
+}
+
+export async function startServer(opts: ServerOptions): Promise<RunningReader> {
   const { requestedPort, project, mode, openBrowser, archived } = opts;
 
   const server = createServer((req, res) => {
@@ -312,9 +353,19 @@ export async function startServer(opts: ServerOptions): Promise<void> {
       : await bindRequested(server, requestedPort);
 
   // A failure after the socket is up is still a message, not a stack trace.
+  // Reported and exited here rather than thrown: this runs from an event, so
+  // there is no caller to catch it, and an exception would become exactly the
+  // stack trace this exists to prevent.
+  /* node:coverage disable */
+  // Coverage reason: this fires only when the socket fails after it is up —
+  // a condition a test cannot produce on a healthy loopback listener — and it
+  // ends the process doing the measuring. What it says is `bindFailureReason`,
+  // which is exercised directly.
   server.on("error", (err) => {
-    fail(`Server error: ${bindFailureReason(err)}.`);
+    console.error(`[openspec-tools] Server error: ${bindFailureReason(err)}.`);
+    process.exit(1);
   });
+  /* node:coverage enable */
 
   // Silence about a substitution would make the one promise this makes — the
   // same project is always at the same URL — look like it broke at random.
@@ -340,10 +391,30 @@ export async function startServer(opts: ServerOptions): Promise<void> {
       `  project: ${project.name}  ·  reading: ${describeTarget(mode, project)}\n` +
       remoteHint
   );
+  // Coverage reason: the true branch launches a browser on the machine running
+  // the tests. `design.md` names opening a browser as a Non-Goal.
+  /* node:coverage ignore next */
   if (openBrowser) openBrowserAt(url);
 
-  process.on("SIGINT", () => {
+  // Registered here and removed on close, so a caller that starts and stops
+  // several readers in one process does not accumulate handlers.
+  // Coverage reason: this ends the process it runs in, which in a test run is
+  // the process doing the measuring. Its removal on close is what is asserted
+  // instead, and that is the part with a consequence.
+  /* node:coverage ignore next 4 */
+  const onInterrupt = (): void => {
     server.close();
     process.exit(0);
-  });
+  };
+  process.on("SIGINT", onInterrupt);
+
+  return {
+    port: bound,
+    url,
+    close: () =>
+      new Promise<void>((done) => {
+        process.removeListener("SIGINT", onInterrupt);
+        server.close(() => done());
+      }),
+  };
 }

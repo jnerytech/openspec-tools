@@ -148,6 +148,9 @@ export function findRegion(
     kind: "found",
     start,
     end,
+    // Coverage reason: `start` is an index this function itself collected by
+    // unwrapping that very line, so unwrapping it again cannot come back null.
+    /* node:coverage ignore next */
     params: (payload === null ? null : parseOpenPayload(payload, id)) ?? {},
     body: lines.slice(start + 1, end),
   };

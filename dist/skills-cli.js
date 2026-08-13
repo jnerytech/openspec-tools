@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { checkbox, confirm as confirmPrompt } from "@inquirer/prompts";
 import { ALWAYS_YES, assign, deleteAssignments, installAssignments, removeAssignments, } from "./skill-actions.js";
+import { ExitError } from "./exit.js";
 import { destinations } from "./skill-destinations.js";
 import { listPackagedSkills } from "./skill-source.js";
 import { describeState } from "./skill-state.js";
@@ -21,8 +22,8 @@ function requireInteractive(cmd, missing, options) {
 function packagedOrExit() {
     const skills = listPackagedSkills();
     if (skills.length === 0) {
-        console.log("[openspec-tools] This package ships no skills to install.");
-        process.exit(0);
+        // Nothing to do is a complete answer, not a failure: exit code 0.
+        throw new ExitError("[openspec-tools] This package ships no skills to install.", [], 0);
     }
     return skills;
 }

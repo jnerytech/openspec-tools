@@ -37,8 +37,11 @@ export function destinations(cwd = process.cwd()) {
 }
 export function findDestination(id, cwd) {
     const found = destinations(cwd).find((dest) => dest.id === id);
-    // The id type is closed, so this cannot happen; the throw keeps the return
-    // type honest rather than pushing an `undefined` check onto every caller.
+    // Coverage reason: `DestinationId` is a closed union and `destinations()`
+    // returns one entry per member, so no caller can reach this. The throw keeps
+    // the return type honest rather than pushing an `undefined` check onto every
+    // caller, and no test can exercise it without lying about the type.
+    /* node:coverage ignore next */
     if (!found)
         throw new Error(`Unknown destination: ${id}`);
     return found;

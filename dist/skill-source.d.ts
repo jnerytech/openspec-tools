@@ -7,5 +7,7 @@ export declare function packagedSkillsDir(): string;
  * of names the installer will ever write or delete, which is what keeps an
  * unrelated skill sharing the destination directory out of reach.
  */
-export declare function listPackagedSkills(): PackagedSkill[];
+export declare function listPackagedSkills(
+/** Overridden only by this repository's own tests. */
+root?: string): PackagedSkill[];
 //# sourceMappingURL=skill-source.d.ts.map

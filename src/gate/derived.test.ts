@@ -17,7 +17,12 @@ import { testCovering } from "../test-fixture.js";
  * needed a second edit to stay true, and would have stayed wrong without one.
  */
 
-const FIXTURE = join(REPO_ROOT, "src", "test-fixture.ts");
+/**
+ * The compiled fixture, which is what the suite itself now runs against. The
+ * probe is plain JavaScript for the same reason: it has to be executable by
+ * `node` directly, with no transform between the source and what runs.
+ */
+const FIXTURE = join(REPO_ROOT, ".tscheck", "test-fixture.js");
 
 /** The parent's environment minus what marks it as a running test. */
 function childEnv(): NodeJS.ProcessEnv {
@@ -31,13 +36,13 @@ function childEnv(): NodeJS.ProcessEnv {
 function declarationsOf(body: string): Set<string> {
   const dir = mkdtempSync(join(tmpdir(), "opsx-derived-"));
   try {
-    const file = join(dir, "probe.test.ts");
+    const file = join(dir, "probe.test.js");
     writeFileSync(file, body, "utf8");
     const out = join(dir, "collected");
 
     const result = spawnSync(
       process.execPath,
-      [join(REPO_ROOT, "node_modules", "tsx", "dist", "cli.mjs"), "--test", file],
+      ["--test", file],
       {
         cwd: REPO_ROOT,
         encoding: "utf8",

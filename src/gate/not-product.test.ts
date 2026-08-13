@@ -23,6 +23,7 @@ const PROJECT: Record<string, string> = {
 /** Every path the gate owns, by the name it would have in a user's project. */
 const GATE_ARTEFACTS = [
   ".githooks",
+  "coverage.lcov",
   ".githooks/pre-commit",
   "tsconfig.check.json",
   "openspec/coverage.json",
@@ -162,3 +163,114 @@ test("no packaged skill installs or mentions the gate as something to run", () =
     );
   }
 });
+
+test("the floor covers what the package ships, and not the tests or the gate", async () => {
+  const { productionFiles } = await import("./code-coverage.js");
+
+  const files = productionFiles();
+
+  assert.ok(files.length > 20, "the real tree is what is measured");
+  for (const file of files) {
+    assert.ok(!file.endsWith(".test.ts"), file);
+    assert.ok(!file.startsWith("gate/"), file);
+    assert.notEqual(file, "test-fixture.ts");
+  }
+  // And what it does cover is what `tsconfig.json` publishes.
+  assert.ok(files.includes("main.ts"));
+  assert.ok(files.includes("server.ts"));
+});
+
+testCovering(
+  "no production module depends on a spawned process to be exercised",
+  "quality-gates",
+  ["Nenhum código de produção é exercitado apenas fora da medição"],
+  async () => {
+    const { productionFiles } = await import("./code-coverage.js");
+    const { readFileSync } = await import("fs");
+
+    // Every production module is reachable from a test running in this
+    // process — directly, or through another module that a test imports. A
+    // module reachable only by spawning the binary would be reported as
+    // untouched however well it is tested, which is the failure this rules out.
+    const read = (rel: string): string =>
+      readFileSync(join(REPO_ROOT, "src", rel), "utf8");
+
+    const suites = readdirSync(join(REPO_ROOT, "src"), { recursive: true })
+      .map(String)
+      .filter((name) => name.endsWith(".test.ts"));
+
+    const reached = new Set<string>();
+    const walk = (source: string): void => {
+      for (const match of source.matchAll(/from\s+["']([^"']+\.js)["']/g)) {
+        const rel = match[1].replace(/^\.\.\//, "").replace(/^\.\//, "");
+        const asTs = rel.replace(/\.js$/, ".ts");
+        const candidates = [asTs, `components/${asTs}`, `gate/${asTs}`];
+        for (const candidate of candidates) {
+          if (reached.has(candidate)) continue;
+          try {
+            const next = read(candidate);
+            reached.add(candidate);
+            walk(next);
+          } catch {
+            // Not a module of this tree — a package, or a different folder.
+          }
+        }
+      }
+    };
+
+    for (const suite of suites) walk(read(suite));
+
+    const { readExclusions } = await import("./code-coverage.js");
+
+    /** A module that declares its whole self out of the measurement. */
+    const whollyExcluded = (rel: string): boolean => {
+      const source = read(rel);
+      const { excluded, nonCode } = readExclusions(source);
+      const total = source.split("\n").length;
+      for (let at = 1; at <= total; at++) {
+        if (!excluded.has(at) && !nonCode.has(at)) return false;
+      }
+      return true;
+    };
+
+    for (const file of productionFiles()) {
+      assert.ok(
+        reached.has(file) || whollyExcluded(file),
+        `${file} is reachable only by spawning a process, and says nothing ` +
+          `about why that is allowed`
+      );
+    }
+
+    // And exactly one module is in that position: the process entry point.
+    const onlyOutOfProcess = productionFiles().filter(
+      (file) => !reached.has(file)
+    );
+    assert.deepEqual(onlyOutOfProcess, ["main.ts"]);
+  }
+);
+
+testCovering(
+  "the subprocess suite is still there, verifying what only a process shows",
+  "quality-gates",
+  ["O teste de processo separado permanece como verificação adicional"],
+  () => {
+    const subprocess = readFileSync(
+      join(REPO_ROOT, "src", "cli-subprocess.test.ts"),
+      "utf8"
+    );
+
+    // It runs the real binary and asserts on the code it exits with, which is
+    // what `cli-interface` specifies and what no in-process call can show.
+    assert.match(subprocess, /runCli\(/);
+    assert.match(subprocess, /assert\.equal\(code, 1\)/);
+    assert.match(subprocess, /assert\.equal\(code, 0/);
+
+    // And the same paths are exercised in process, where they are measured.
+    const inProcess = readFileSync(
+      join(REPO_ROOT, "src", "cli-inprocess.test.ts"),
+      "utf8"
+    );
+    assert.match(inProcess, /buildProgram\(\)/);
+    assert.match(inProcess, /isExitError/);
+  }
+);

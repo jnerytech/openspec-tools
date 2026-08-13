@@ -125,6 +125,10 @@ export const artifactLanguageComponent: Component<LanguageSelection> = {
     // Refusing is reported through inspect(); a plan never carries an edit it
     // could not compute, so an unsafe file simply contributes nothing here.
     if (result.kind === "unsafe") return [];
+    // Coverage reason: `configPath` returned a path, so the file is there and
+    // `before` is its contents. The fallback covers a file that vanished
+    // between the two calls, which no test can stage without a race.
+    /* node:coverage ignore next */
     if (result.content === (before ?? "")) return [];
 
     const edit: RegionEdit = {

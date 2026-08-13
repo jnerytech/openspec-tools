@@ -10,6 +10,7 @@ import {
   installAssignments,
   removeAssignments,
 } from "./skill-actions.js";
+import { ExitError } from "./exit.js";
 import { destinations } from "./skill-destinations.js";
 import { listPackagedSkills } from "./skill-source.js";
 import { describeState } from "./skill-state.js";
@@ -43,8 +44,12 @@ function requireInteractive(
 function packagedOrExit(): PackagedSkill[] {
   const skills = listPackagedSkills();
   if (skills.length === 0) {
-    console.log("[openspec-tools] This package ships no skills to install.");
-    process.exit(0);
+    // Nothing to do is a complete answer, not a failure: exit code 0.
+    throw new ExitError(
+      "[openspec-tools] This package ships no skills to install.",
+      [],
+      0
+    );
   }
   return skills;
 }

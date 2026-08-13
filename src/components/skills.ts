@@ -51,6 +51,10 @@ function destsFor(project: ProjectIdentity): Destination[] {
 
 function only(project: ProjectIdentity, id: DestinationId): Destination {
   const found = destsFor(project).find((dest) => dest.id === id);
+  // Coverage reason: `DestinationId` is a closed union and `destsFor` returns
+  // one entry per member, so no caller reaches this. The throw keeps the
+  // return type honest instead of pushing a check onto every caller.
+  /* node:coverage ignore next */
   if (!found) throw new Error(`Unknown destination: ${id}`);
   return found;
 }
@@ -87,6 +91,10 @@ export const skillsComponent: Component<SkillsSelection> = {
     const alsoUser = pairsAt(project, [only(project, "user")]).some(
       ({ state }) => state.kind !== "absent"
     );
+    // Coverage reason: the true side needs a copy under the real home
+    // directory, which no test may write to. What it adds is one phrase in a
+    // detail string; the row's verdict is decided by the project destination.
+    /* node:coverage ignore next */
     const suffix = alsoUser ? ", also installed for your user" : "";
 
     const unreadable = here.find(({ state }) => state.kind === "unreadable");

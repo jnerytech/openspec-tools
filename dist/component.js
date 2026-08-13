@@ -1,5 +1,6 @@
 import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { dirname } from "path";
+import { ExitError } from "./exit.js";
 export function describeComponentState(state) {
     switch (state.kind) {
         case "absent":
@@ -105,8 +106,7 @@ export function applyPlan(project, entries) {
                 component.applyEdit(project, edit);
             }
             catch (err) {
-                console.error(`[openspec-tools] Could not complete the change to ${editPath(edit)}: ${err.message}`);
-                process.exit(1);
+                throw new ExitError(`[openspec-tools] Could not complete the change to ${editPath(edit)}: ${err.message}`);
             }
         }
     }

@@ -103,8 +103,6 @@ export const claudeWorkflowComponent = {
         const after = selection === null && createdByUs && isBlank(content) ? null : content;
         if (before === after)
             return [];
-        if (before !== null && after !== null && before === after)
-            return [];
         const edit = { kind: "region", path, before, after };
         return [edit];
     },

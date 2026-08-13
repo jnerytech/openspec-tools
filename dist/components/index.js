@@ -15,7 +15,4 @@ export const COMPONENTS = [
     claudeWorkflowComponent,
     commitConventionComponent,
 ];
-export function componentById(id) {
-    return COMPONENTS.find((component) => component.id === id);
-}
 //# sourceMappingURL=index.js.map

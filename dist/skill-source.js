@@ -18,6 +18,10 @@ function packageRoot() {
         const parent = dirname(dir);
         // No package.json anywhere above: fall back to the module's parent, which
         // is the layout this package actually ships.
+        // Coverage reason: reaching this means walking from this module to the
+        // filesystem root without meeting a package.json — impossible while the
+        // package has one, which it must to be installed at all.
+        /* node:coverage ignore next */
         if (parent === dir)
             return dirname(dirname(fileURLToPath(import.meta.url)));
         dir = parent;
@@ -33,8 +37,9 @@ export function packagedSkillsDir() {
  * of names the installer will ever write or delete, which is what keeps an
  * unrelated skill sharing the destination directory out of reach.
  */
-export function listPackagedSkills() {
-    const root = packagedSkillsDir();
+export function listPackagedSkills(
+/** Overridden only by this repository's own tests. */
+root = packagedSkillsDir()) {
     let entries;
     try {
         entries = readdirSync(root, { withFileTypes: true });

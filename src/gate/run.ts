@@ -12,9 +12,10 @@
  */
 
 import { spawnSync } from "child_process";
-import { mkdtempSync, rmSync } from "fs";
+import { mkdtempSync, readFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { verifyCodeCoverage } from "./code-coverage.js";
 import { runGate, verifyStep } from "./pipeline.js";
 import { readSpecScenarios, REPO_ROOT } from "./scenarios.js";
 import { readDeclared, writeRecord, RECORD_PATH } from "./verify.js";
@@ -23,11 +24,13 @@ const write = process.argv.includes("--write");
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 
 function run(
+  label: string,
+  command: string,
   args: string[],
   env: Record<string, string> = {}
 ): { ok: boolean; stdout: string } {
-  process.stdout.write(`\n── ${args[args.length - 1]}\n`);
-  const result = spawnSync(npm, args, {
+  process.stdout.write(`\n── ${label}\n`);
+  const result = spawnSync(command, args, {
     cwd: REPO_ROOT,
     // Inherited for stderr so a compiler error keeps its shape; stdout is
     // captured because the coverage table is pulled out of it.
@@ -44,35 +47,59 @@ function run(
  * read - and its absence is not silent.
  */
 function lineCoverageTable(stdout: string): string {
-  const start = stdout.indexOf("# start of coverage report");
-  const end = stdout.indexOf("# end of coverage report");
+  // The marker carries the reporter's own prefix, so it is matched loosely.
+  const start = stdout.search(/start of coverage report/);
+  const end = stdout.search(/end of coverage report/);
   if (start === -1 || end === -1) return "  (not produced)";
-  return stdout.slice(start, end).split("\n").slice(1).join("\n").trimEnd();
+  return stdout
+    .slice(start, end)
+    .split("\n")
+    .slice(1, -1)
+    .join("\n")
+    .trimEnd();
 }
 
 const collected = mkdtempSync(join(tmpdir(), "opsx-tools-coverage-"));
+const lcovPath = join(collected, "coverage.lcov");
 let declaredForRecord: Set<string> = new Set();
 
 try {
   const result = runGate({
     types: () => {
-      const { ok } = run(["run", "--silent", "typecheck"]);
+      const { ok } = run("type check", npm, ["run", "--silent", "typecheck"]);
       return { ok };
     },
 
     suite: () => {
       // One run: it produces the scenario declarations and the line-coverage
       // diagnostic together, so the two can never describe different runs.
-      const { ok, stdout } = run(["run", "--silent", "coverage"], {
-        OPSX_COVERAGE_DIR: collected,
-      });
+      // Node directly rather than through npm: the suite needs two reporters
+      // at once — one to read, one to parse — and npm's own argument handling
+      // does not carry a pair of them through intact.
+      const { ok, stdout } = run(
+        "test suite",
+        process.execPath,
+        [
+          "--enable-source-maps",
+          "--experimental-test-module-mocks",
+          "--test",
+          "--experimental-test-coverage",
+          "--test-reporter=spec",
+          "--test-reporter-destination=stdout",
+          "--test-reporter=lcov",
+          `--test-reporter-destination=${lcovPath}`,
+          ".tscheck/**/*.test.js",
+        ],
+        { OPSX_COVERAGE_DIR: collected }
+      );
       const declared = readDeclared(collected);
       declaredForRecord = declared;
 
-      // The test log itself, minus the coverage table, which is printed on its
-      // own below.
-      const log = stdout.split("# start of coverage report")[0].trimEnd();
-      return { ok, declared, output: log, lineCoverage: lineCoverageTable(stdout) };
+      // Only the tail of the log: a passing run of four hundred cases is not
+      // worth reprinting, and a failing one puts its failures at the end.
+      const log = stdout.split(/.?.?\s*start of coverage report/)[0].trimEnd();
+      const tail = log.split("\n").slice(-12).join("\n");
+      return { ok, declared, output: tail, lineCoverage: lineCoverageTable(stdout) };
     },
 
     coverage: (declared) => {
@@ -84,6 +111,12 @@ try {
       }
       return verifyStep(declared);
     },
+
+    code: () =>
+      verifyCodeCoverage({
+        lcov: readFileSync(lcovPath, "utf8"),
+        compiledDir: join(REPO_ROOT, ".tscheck"),
+      }),
   });
 
   if (result.ran.includes("coverage")) process.stdout.write("\n── coverage\n");

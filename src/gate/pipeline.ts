@@ -12,9 +12,10 @@
  * needed to decide".
  */
 
+import { reportCodeCoverage, type CodeCoverageVerdict } from "./code-coverage.js";
 import { report, verify, type Verdict } from "./verify.js";
 
-export type StepName = "types" | "suite" | "coverage";
+export type StepName = "types" | "suite" | "coverage" | "code";
 
 export interface StepOutcome {
   ok: boolean;
@@ -32,6 +33,8 @@ export interface GateSteps {
   suite(): StepOutcome & { declared: Set<string>; lineCoverage?: string };
   /** The scenario-coverage verdict over what the suite declared. */
   coverage(declared: Set<string>): Verdict;
+  /** Whether every line, branch and function of production code was reached. */
+  code(): CodeCoverageVerdict;
 }
 
 export interface GateResult {
@@ -42,6 +45,7 @@ export interface GateResult {
   ran: StepName[];
   lines: string[];
   verdict?: Verdict;
+  codeVerdict?: CodeCoverageVerdict;
 }
 
 /**
@@ -74,16 +78,26 @@ export function runGate(steps: GateSteps): GateResult {
     return { ok: false, failed: "suite", ran, lines };
   }
 
+  // Scenario coverage first: it names which promise is undefended, which is
+  // more actionable than naming a line.
   ran.push("coverage");
   const verdict = steps.coverage(suite.declared);
   lines.push(report(verdict));
+  if (!verdict.ok) {
+    return { ok: false, failed: "coverage", ran, lines, verdict };
+  }
+
+  ran.push("code");
+  const codeVerdict = steps.code();
+  lines.push(reportCodeCoverage(codeVerdict));
 
   return {
-    ok: verdict.ok,
-    failed: verdict.ok ? undefined : "coverage",
+    ok: codeVerdict.ok,
+    failed: codeVerdict.ok ? undefined : "code",
     ran,
     lines,
     verdict,
+    codeVerdict,
   };
 }
 

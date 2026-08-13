@@ -15,6 +15,10 @@ export declare function helpHint(cmd: Command): string;
  * Every usage error ends with the same pointer to the failing command's help,
  * so no error path can forget it. Never prints the full usage listing — the
  * error stays first.
+ *
+ * Throws rather than exiting: the message and its order are decided here, and
+ * where the process ends is decided in one place, at the top. That is also what
+ * lets a test observe a refusal without generating a process.
  */
 export declare function usageError(cmd: Command, message: string, details?: string[]): never;
 //# sourceMappingURL=usage.d.ts.map

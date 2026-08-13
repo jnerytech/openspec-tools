@@ -121,7 +121,7 @@ testCovering(
 testCovering(
   "the decision is taken over scenarios, and no line percentage enters it",
   "quality-gates",
-  ["O critério é o scenario, não a linha"],
+  ["Um scenario descoberto recusa mesmo com cobertura total de código"],
   () => {
     withSpecs(SPECS, (specsDir) => {
       // The verifier is given the declared scenarios and nothing else: there
