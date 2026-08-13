@@ -1,14 +1,36 @@
 #!/bin/sh
 #
-# Runs the test suite before every commit. Versioned here rather than in
+# Runs the quality gate before every commit. Versioned here rather than in
 # .git/hooks/, which Git does not track: activated with
 #
 #   git config core.hooksPath .githooks
 #
 # which `npm install` also does through the "prepare" script.
 #
-# `git commit --no-verify` skips it, deliberately and knowingly.
+# The gate is three checks, in the order they refuse:
+#
+#   1. types      tsc over src/ *including* the test files, which the
+#                 publishing config excludes. The suite runs under tsx, which
+#                 strips type annotations without checking them, so without
+#                 this a type error crosses the whole gate untouched.
+#   2. suite      every test, which is also the run that collects which
+#                 scenario each test declares it covers.
+#   3. coverage   every scenario in openspec/specs/ is either covered by a
+#                 test or declared out of scope with a reason, and nothing
+#                 that openspec/coverage.json records as covered has stopped
+#                 being covered.
+#
+# Nothing here is a feature of opsx-tools. This is how this repository holds
+# itself to its own specs: no component provisions it, no subcommand runs it,
+# and none of it is written into a user's project.
+#
+# `git commit --no-verify` skips all of it, deliberately and knowingly. That is
+# not a hole in the gate — it is the gate being honest about what it is. A
+# local hook can always be bypassed, and one that pretended otherwise would
+# only invite being turned off for good. Bypassing is a choice the person
+# making it owns; the gate's job is to make sure it is a choice and not an
+# accident.
 
 set -e
 
-npm test
+npm run --silent gate

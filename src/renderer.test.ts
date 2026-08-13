@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { join } from "path";
 import { collectMarkdownFiles, scanChanges } from "./scanner.js";
 import { renderChange, renderFiles } from "./renderer.js";
-import { withTree, tocNames } from "./test-fixture.js";
+import { withTree, tocNames, testCovering } from "./test-fixture.js";
 import type { Change } from "./types.js";
 
 const EVERY_ARTIFACT = [
@@ -34,52 +34,73 @@ function change(dirPath: string, artifacts: Change["artifacts"]): Change {
  * own order. Handing the renderer a deliberately reversed list - rather than
  * whatever `readdir` returns - keeps the case from passing by luck.
  */
-test("renderChange orders the artifacts it is handed", async () => {
-  await withTree(EVERY_ARTIFACT, async (dir) => {
-    const unordered = (await collectMarkdownFiles(dir)).sort((a, b) =>
-      b.name.localeCompare(a.name)
-    );
-
-    const html = await renderChange("proj", change(dir, unordered));
-
-    assert.deepEqual(tocNames(html), READING_ORDER);
-  });
-});
-
-test("a change served on its own is ordered like one opened from the list", async () => {
-  await withTree(
-    EVERY_ARTIFACT.map((rel) => join("a-change", rel)),
-    async (changesDir) => {
-      const dir = join(changesDir, "a-change");
-
-      // How the reader builds a change when pointed straight at it.
-      const served = await renderChange(
-        "proj",
-        change(dir, await collectMarkdownFiles(dir))
+testCovering(
+  "renderChange orders the artifacts it is handed",
+  "artifact-ordering",
+  ["The reading order does not depend on the file system"],
+  async () => {
+    await withTree(EVERY_ARTIFACT, async (dir) => {
+      const unordered = (await collectMarkdownFiles(dir)).sort((a, b) =>
+        b.name.localeCompare(a.name)
       );
 
-      // How it builds the same change when opened from the index.
-      const scanned = (await scanChanges(changesDir))[0];
-      const listed = await renderChange("proj", scanned);
+      const html = await renderChange("proj", change(dir, unordered));
 
-      assert.deepEqual(tocNames(served), READING_ORDER);
-      assert.deepEqual(tocNames(served), tocNames(listed));
-    }
-  );
-});
+      assert.deepEqual(tocNames(html), READING_ORDER);
+    });
+  }
+);
 
-test("renderFiles orders a plain folder of Markdown the same way", async () => {
-  await withTree(EVERY_ARTIFACT, async (dir) => {
-    const unordered = (await collectMarkdownFiles(dir)).sort((a, b) =>
-      b.name.localeCompare(a.name)
+testCovering(
+  "a change served on its own is ordered like one opened from the list",
+  "artifact-ordering",
+  ["A change served on its own is ordered identically"],
+  async () => {
+    await withTree(
+      EVERY_ARTIFACT.map((rel) => join("a-change", rel)),
+      async (changesDir) => {
+        const dir = join(changesDir, "a-change");
+
+        // How the reader builds a change when pointed straight at it.
+        const served = await renderChange(
+          "proj",
+          change(dir, await collectMarkdownFiles(dir))
+        );
+
+        // How it builds the same change when opened from the index.
+        const scanned = (await scanChanges(changesDir))[0];
+        const listed = await renderChange("proj", scanned);
+
+        assert.deepEqual(tocNames(served), READING_ORDER);
+        assert.deepEqual(tocNames(served), tocNames(listed));
+      }
     );
+  }
+);
 
-    const html = await renderFiles("proj", unordered, "a folder");
+testCovering(
+  "renderFiles orders a plain folder of Markdown the same way",
+  "artifact-ordering",
+  ["The reading order does not depend on the file system"],
+  async () => {
+    await withTree(EVERY_ARTIFACT, async (dir) => {
+      const unordered = (await collectMarkdownFiles(dir)).sort((a, b) =>
+        b.name.localeCompare(a.name)
+      );
 
-    assert.deepEqual(tocNames(html), READING_ORDER);
-  });
-});
+      const html = await renderFiles("proj", unordered, "a folder");
 
+      assert.deepEqual(tocNames(html), READING_ORDER);
+    });
+  }
+);
+
+/**
+ * No scenario of `artifact-ordering` names this: it is a property of the
+ * implementation - ordering a copy - rather than of the reading order the
+ * capability specifies. Declaring a scenario here would claim cover the spec
+ * does not ask for, so the test stays a plain one.
+ */
 test("rendering does not reorder the caller's own array", async () => {
   await withTree(EVERY_ARTIFACT, async (dir) => {
     const unordered = (await collectMarkdownFiles(dir)).sort((a, b) =>

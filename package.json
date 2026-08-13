@@ -8,9 +8,12 @@
   },
   "scripts": {
     "compile": "tsc",
+    "typecheck": "tsc -p tsconfig.check.json",
     "dev": "tsx src/main.ts",
     "start": "node dist/main.js",
     "test": "tsx --test \"src/**/*.test.ts\"",
+    "coverage": "tsx --test --experimental-test-coverage \"src/**/*.test.ts\"",
+    "gate": "tsx src/gate/run.ts",
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "keywords": ["openspec", "sdd", "spec-driven", "ai", "reader"],

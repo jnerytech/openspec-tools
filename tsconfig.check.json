@@ -1,0 +1,17 @@
+{
+  // The publishing config with the test files put back and the output pointed
+  // somewhere throwaway. `dist/` is versioned, so nothing the gate runs may
+  // write there; and `tsconfig.json` excludes the tests, so a type check with
+  // it would not look at a single test file — the two reasons this exists.
+  //
+  // One run answers both needs: type checking is a side effect of compiling,
+  // and what comes out is the binary the subprocess suite executes.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./.tscheck",
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", ".tscheck"]
+}
