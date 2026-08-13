@@ -6,15 +6,17 @@
   "bin": {
     "opsx-tools": "./dist/main.js"
   },
+  "files": ["dist", "skills", "README.md"],
   "scripts": {
-    "compile": "tsc",
+    "build": "tsc -p tsconfig.json",
+    "compile": "npm run build",
     "typecheck": "tsc -p tsconfig.check.json",
     "dev": "tsx src/main.ts",
     "start": "node dist/main.js",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "coverage": "tsx --test --experimental-test-coverage \"src/**/*.test.ts\"",
     "gate": "tsx src/gate/run.ts",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "npm run build && (git config core.hooksPath .githooks || true)"
   },
   "keywords": ["openspec", "sdd", "spec-driven", "ai", "reader"],
   "license": "MIT",
