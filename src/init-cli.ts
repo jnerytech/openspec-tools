@@ -18,6 +18,7 @@ interface InitOptions {
   todos?: boolean;
   questions?: boolean;
   claudeWorkflow?: boolean;
+  commitRule?: boolean;
   project?: boolean;
   user?: boolean;
   yes?: boolean;
@@ -55,6 +56,9 @@ function intentsFromFlags(cmd: Command): Map<string, Intent> {
   if (typedIntent(cmd, "todos") || typedIntent(cmd, "questions")) {
     intents.set("claude-workflow", "select");
   }
+
+  const commitRule = typedIntent(cmd, "commitRule");
+  if (commitRule) intents.set("commit-convention", commitRule);
 
   return intents;
 }
@@ -97,6 +101,7 @@ async function chooseInteractively(
     `${self} --skills --project           provision the skills`,
     `${self} --lang pt-BR                 set the artifact language`,
     `${self} --todos --questions          write the working agreements`,
+    `${self} --commit-rule                write the commit convention rule`,
     `${self} --no-lang                    remove the artifact language`,
   ]);
 
@@ -164,6 +169,8 @@ export function initCommand(): Command {
     .option("--todos", "ask the agent to keep a task list under openspec/")
     .option("--questions", "ask the agent to ask rather than assume under openspec/")
     .option("--no-claude-workflow", "remove the Claude Code working agreements")
+    .option("--commit-rule", "write the one-line conventional-commit rule")
+    .option("--no-commit-rule", "remove the one-line conventional-commit rule")
     .option("--project", "skills go to the project's .claude/skills/")
     .option("--user", "skills go to ~/.claude/skills/")
     .option("-y, --yes", "answer every confirmation affirmatively")
@@ -189,6 +196,7 @@ EXAMPLES
   opsx-tools init --skills --project --yes
   opsx-tools init --lang pt-BR --yes
   opsx-tools init --todos --questions --yes
+  opsx-tools init --commit-rule --yes
   opsx-tools init --no-lang --yes              # remove just that one
 
 NOTE
@@ -196,8 +204,9 @@ NOTE
   destination, install and remove as separate verbs. This command treats the
   skills as one item.
 
-  The working agreements are instructions written for the agent to read. They
-  are not enforced.
+  The working agreements and the commit rule are instructions written for the
+  agent to read. They are not enforced: nothing here installs a Git hook, a
+  Claude Code hook, or a message checker.
 `
     );
 

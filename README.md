@@ -5,9 +5,13 @@ installs one command, **`opsx-tools`**, with a subcommand per component:
 
 1. **`opsx-tools init`** — sets a repository up with everything the package offers, as one checklist you edit
 2. **`opsx-tools read`** — a lightweight CLI + web server that renders OpenSpec changes as clean, read-aloud-friendly HTML pages (great with browser Read Aloud, Edge Immersive Reader, etc.)
-3. **`opsx-tools skill`** — installs and removes the **pack of two skills** that ships alongside it:
+3. **`opsx-tools skill`** — installs and removes the **pack of six skills** that ships alongside it:
    - **`openspec-review-change`** — reviews a change for internal consistency, alignment with existing specs, code conformance, and independent verification of the factual claims the change makes
    - **`openspec-summarize-change`** — writes a short orientation summary of a change to `summary.md`, in English or pt-BR
+   - **`claude-code-skills`** — a knowledge base on authoring Claude Code skills: frontmatter, invocation control, `context: fork`, dynamic injection, troubleshooting
+   - **`claude-code-memory`** — how Claude Code remembers a project: `CLAUDE.md` scopes and load order, `@imports`, `AGENTS.md` interop, `.claude/rules/`, auto memory
+   - **`claude-code-hooks`** — hook events and lifecycle, matchers, exit-code vs structured-JSON decisions, hook types, settings scope
+   - **`claude-code-subagents`** — subagent frontmatter, tools and permissions, model choice, delegation, nesting, forking the conversation
 
 ---
 
@@ -42,7 +46,7 @@ opsx-tools read ./docs
 opsx-tools read CONTRIBUTING.md --open
 
 # Install just the skills, one by one, into this project
-opsx-tools skill install openspec-review-change openspec-summarize-change --project
+opsx-tools skill install openspec-review-change openspec-summarize-change claude-code-skills --project
 ```
 
 The command prints the URL it bound, along with the project and what it is
@@ -190,14 +194,16 @@ opsx-tools init
 ```
 Project: your-project  /home/you/your-project
 
-  Skills                           2 installed
+  Skills                           6 installed
   Artifact language                not set
   Claude Code working agreements   not set
+  Commit convention rule           not set
 
 ? Check to provision, clear to remove
-❯ ◉ Skills  — 2 installed
+❯ ◉ Skills  — 6 installed
   ◯ Artifact language  — not set
   ◯ Claude Code working agreements  — not set
+  ◯ Commit convention rule  — not set
 ```
 
 Everything that would be written or deleted is named before anything happens,
@@ -219,6 +225,7 @@ and your tool set, which is the conversation `openspec init` exists to have.
 | **Skills** | Installs the skills this package ships, all of them as one item | `<project>/.claude/skills/`, and `~/.claude/skills/` if you ask |
 | **Artifact language** | Fixes the language OpenSpec artifacts are written in | the `context` field of `openspec/config.yaml` |
 | **Claude Code working agreements** | Asks the agent to keep a task list, and to ask rather than assume, while working under `openspec/` | `CLAUDE.md` |
+| **Commit convention rule** | Asks for commit messages of exactly one line, in Conventional Commits form, with no body, no footer, and no `Co-Authored-By` trailer | `<project>/.claude/rules/commit-convention.md` |
 
 The destinations differ on purpose, and the axis is **who reads the file**, not
 what the directive is about:
@@ -233,11 +240,42 @@ what the directive is about:
   instruction about a tool one of them has. `CLAUDE.md` is the honest home.
   `AGENTS.md` is the cross-tool convention, so it is the wrong home for the same
   reason.
+- The **commit convention** has nothing to do with work under `openspec/`, which
+  is the scope the working agreements declare in their own text, so it does not
+  join that block. It goes to `.claude/rules/`, Claude Code's home for
+  topic-by-topic project rules, one file per topic.
 
-> The working agreements are **instructions written into the agent's context.**
-> They are not enforced, and nothing here can compel a tool call — a hook can
-> intercept one, not inject one that never happened. What this package
-> guarantees is that the directive is present, correct, scoped, and removable.
+The rule is written **without a `paths` field**, and so loads every session:
+`paths` scopes a rule to reading a matching file, and writing a commit message
+is not that. What it says:
+
+```markdown
+## Commit messages
+
+Every commit message is exactly one line, in Conventional Commits form:
+
+    type(scope): description
+
+- `type` is one of: feat, fix, docs, style, refactor, perf, test, build,
+  ci, chore, revert.
+- `scope` is optional and names the area touched, in lowercase.
+- Mark a breaking change with `!` before the colon: `feat(cli)!: ...`.
+- The description is imperative and lowercase, with no trailing period.
+- Keep the whole line at 72 characters or fewer.
+- Write nothing after that line: no body, no footer, no trailers — in
+  particular no `Co-Authored-By` line.
+```
+
+That last bullet is the point of the rule. Claude Code's own default instruction
+adds a `Co-Authored-By` trailer, so a rule that only asks for "conventional
+commits, one line" leaves the trailer in place and changes nothing.
+
+> The working agreements and the commit rule are **instructions written into the
+> agent's context.** They are not enforced, and nothing here can compel a tool
+> call — a hook can intercept one, not inject one that never happened. Nothing
+> here installs a Git hook, a Claude Code hook, or a message checker either. What
+> this package guarantees is that the directive is present, correct, scoped, and
+> removable.
 
 ### Flags
 
@@ -253,6 +291,7 @@ release.
 opsx-tools init --skills --project --yes    # install the skills here
 opsx-tools init --lang pt-BR --yes          # set the artifact language
 opsx-tools init --todos --questions --yes   # write both working agreements
+opsx-tools init --commit-rule --yes         # write the commit convention rule
 opsx-tools init --no-lang --yes             # remove just that one
 ```
 
@@ -263,6 +302,7 @@ opsx-tools init --no-lang --yes             # remove just that one
 | `--lang <language>` / `--no-lang` | set or remove the artifact language; any language you name is accepted |
 | `--todos`, `--questions` | write those working agreements (naming one selects the component) |
 | `--no-claude-workflow` | remove the working agreements |
+| `--commit-rule` / `--no-commit-rule` | write or remove the commit convention rule |
 | `-y, --yes` | answer every confirmation affirmatively |
 
 When a question can't be asked — piped input, CI — `init` names the flag that
@@ -270,9 +310,9 @@ would have supplied the answer and exits 1, rather than guessing.
 
 ### Editing files you own
 
-`init` writes into `openspec/config.yaml` and `CLAUDE.md`, which are yours and
-usually already have content. It edits them by splicing a delimited region and
-nothing else:
+`init` writes into `openspec/config.yaml`, `CLAUDE.md`, and
+`.claude/rules/commit-convention.md` — files that are yours and may already have
+content. It edits them by splicing a delimited region and nothing else:
 
 ```yaml
 context: |
@@ -289,6 +329,12 @@ wrote, and takes the `context` key with it when nothing else is left.
 
 The delimiters carry their own settings, so `init` reports *which* language is
 set rather than only that something is, with no manifest file anywhere.
+
+The same applies to the rule file: if `.claude/rules/commit-convention.md`
+already exists with notes of your own, the region is appended to it and your
+text is left byte-identical. Removing takes only the region back out — the file
+is deleted only when `init` created it and nothing else remains in it, and no
+other file in `.claude/rules/`, nor the directory itself, is ever touched.
 
 If you edit the region by hand, `init` reports that it differs and shows you the
 change before touching it. If the delimiters are damaged — one missing, or the
@@ -422,6 +468,34 @@ path is not.
 It describes; it does not judge. There is no verdict, no findings, no claim
 verification — that is what `/openspec-review-change` is for.
 
+### Using the Claude Code knowledge bases
+
+```
+/claude-code-skills
+/claude-code-skills frontmatter
+/claude-code-memory ch05
+/claude-code-hooks matchers
+/claude-code-subagents
+```
+
+Four reference skills distilled from the Claude Code documentation, for when you
+are **building the thing rather than using it**:
+
+| Skill | Covers |
+|---|---|
+| `claude-code-skills` | `SKILL.md` frontmatter, how a command name comes from the directory, invocation control (`disable-model-invocation`, `user-invocable`), `allowed-tools`, string substitutions, `context: fork`, dynamic `!command` injection, `skillOverrides`, why a skill refuses to trigger |
+| `claude-code-memory` | `CLAUDE.md` scopes and load order, `@imports`, `AGENTS.md` interop, `.claude/rules/` and path-scoped rules, managed org memory, auto memory, `/memory` |
+| `claude-code-hooks` | hook events and lifecycle, matchers and the `if` field, exit-code vs structured-JSON decisions, command/http/prompt/agent hook types, settings scope |
+| `claude-code-subagents` | frontmatter fields, tools and permissions, MCP scoping, model choice, preloaded skills and memory, delegation, nested subagents, forking the conversation |
+
+Each is shaped the same way: invoked bare it loads the core frameworks; given a
+topic or a chapter number it reads only the chapter that answers the question, so
+the rest stays out of context.
+
+They are the four skills here that are **not** about OpenSpec. They ship anyway
+because this is where the package's own skills, rules, and hooks get written —
+including the commit rule `init` provisions.
+
 ---
 
 ## Install
@@ -501,7 +575,8 @@ openspec-tools/
 │   │   ├── index.ts               # The closed registry, in presentation order
 │   │   ├── skills.ts              # The packaged skills, as one item
 │   │   ├── artifact-language.ts   # → openspec/config.yaml, context field
-│   │   └── claude-workflow.ts     # → CLAUDE.md
+│   │   ├── claude-workflow.ts     # → CLAUDE.md
+│   │   └── commit-convention.ts   # → .claude/rules/commit-convention.md
 │   └── types.ts               # Shared types
 ├── skills/                        # The installable set: any directory here
 │   │                              # holding a SKILL.md is offered by 'skill'
@@ -511,10 +586,19 @@ openspec-tools/
 │   │       ├── claim-verification.md
 │   │       ├── openspec-conventions.md
 │   │       └── report-template.md
-│   └── openspec-summarize-change/
-│       ├── SKILL.md    # The summarize skill
-│       └── references/ # Loaded on demand when the summary is written
-│           └── summary-template.md
+│   ├── openspec-summarize-change/
+│   │   ├── SKILL.md    # The summarize skill
+│   │   └── references/ # Loaded on demand when the summary is written
+│   │       └── summary-template.md
+│   ├── claude-code-skills/        # Four knowledge bases on Claude Code itself,
+│   ├── claude-code-memory/        #   each the same shape: SKILL.md holds the
+│   ├── claude-code-hooks/         #   core frameworks, chapters/ is read one
+│   └── claude-code-subagents/     #   at a time, on demand
+│       ├── SKILL.md
+│       ├── cheatsheet.md
+│       ├── glossary.md
+│       ├── patterns.md
+│       └── chapters/
 └── README.md
 ```
 

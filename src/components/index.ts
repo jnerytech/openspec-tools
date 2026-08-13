@@ -1,6 +1,7 @@
 import type { Component } from "../component.js";
 import { artifactLanguageComponent } from "./artifact-language.js";
 import { claudeWorkflowComponent } from "./claude-workflow.js";
+import { commitConventionComponent } from "./commit-convention.js";
 import { skillsComponent } from "./skills.js";
 
 /**
@@ -14,6 +15,7 @@ export const COMPONENTS: Component<any>[] = [
   skillsComponent,
   artifactLanguageComponent,
   claudeWorkflowComponent,
+  commitConventionComponent,
 ];
 
 export function componentById(id: string): Component<any> | undefined {
